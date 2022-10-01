@@ -1,0 +1,3 @@
+{
+  "default_presets": ["rwc_fixed_qp", "x264_intra_fixed_qp"]
+}

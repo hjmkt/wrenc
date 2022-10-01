@@ -1,0 +1,8 @@
+/target
+*.yuv
+*.vvc
+log*
+flamegraph*.svg
+perf.data*
+oprofile_data
+*.log

@@ -1,0 +1,18 @@
+pub struct PredWeightTable {
+    pub luma_log2_weight_denom: usize,
+    pub delta_chroma_log2_weight_denom: isize,
+    pub num_l0_weights: usize,
+    pub luma_weight_l0_flag: Vec<bool>,
+    pub chroma_weight_l0_flag: Vec<bool>,
+    pub delta_luma_weight_l0: Vec<isize>,
+    pub luma_offset_l0: Vec<isize>,
+    pub delta_chroma_weight_l0: Vec<[isize; 2]>,
+    pub delta_chroma_offset_l0: Vec<[isize; 2]>,
+    pub num_l1_weights: usize,
+    pub luma_weight_l1_flag: Vec<bool>,
+    pub chroma_weight_l1_flag: Vec<bool>,
+    pub delta_luma_weight_l1: Vec<isize>,
+    pub luma_offset_l1: Vec<isize>,
+    pub delta_chroma_weight_l1: Vec<[isize; 2]>,
+    pub delta_chroma_offset_l1: Vec<[isize; 2]>,
+}

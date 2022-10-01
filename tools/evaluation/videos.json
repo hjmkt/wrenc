@@ -1,0 +1,16 @@
+{
+    "bus_352x288_30fps_30fr.mp4": {
+        "width": 352,
+        "height": 288,
+        "frame_rate": 30,
+        "frames": 30,
+        "source": "https://media.xiph.org/video/derf/y4m/bus_cif.y4m"
+    },
+    "mobile_352x288_30fps_30fr.mp4": {
+        "width": 352,
+        "height": 288,
+        "frame_rate": 30,
+        "frames": 30,
+        "source": "https://media.xiph.org/video/derf/y4m/mobile_cif.y4m"
+    }
+}

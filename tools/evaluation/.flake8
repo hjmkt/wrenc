@@ -1,0 +1,4 @@
+[flake8]
+ignore = H903, E266, D203, H306
+exclude = .git
+max-line-length = 99

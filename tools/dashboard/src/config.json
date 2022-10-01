@@ -1,0 +1,6 @@
+{
+    "default_presets": [
+        "rvvc_fixed_qp",
+        "x264_intra_fixed_qp"
+    ]
+}

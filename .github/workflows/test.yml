@@ -1,0 +1,44 @@
+name: Rust
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install latest nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+          components: rustfmt, clippy
+      - name: Build rvvc
+        run: cargo build --verbose
+      - name: Run cargo fmt check
+        run: cargo fmt --all --check
+      - name: Run cargo clippy check
+        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Run unit tests
+        run: cargo test --verbose
+      - name: Build VTM
+        run: |
+          git clone https://vcgit.hhi.fraunhofer.de/jvet/VVCSoftware_VTM.git
+          pushd VVCSoftware_VTM
+          mkdir build
+          cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make
+          popd
+      - name: Install FFmpeg
+        run: sudo apt-get install ffmpeg
+      - name: Run integration tests
+        run: VTM_ROOT=VVCSoftware_VTM/bin scripts/intergration_test.sh

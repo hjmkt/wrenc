@@ -1,0 +1,22 @@
+{
+    "PSNR": {
+        "command": "psnr.sh",
+        "type": "per_frame",
+        "attr": [
+            "Avg",
+            "Y",
+            "U",
+            "V"
+        ]
+    },
+    "SSIM": {
+        "command": "ssim.sh",
+        "type": "per_frame",
+        "attr": [
+            "Avg",
+            "Y",
+            "U",
+            "V"
+        ]
+    }
+}

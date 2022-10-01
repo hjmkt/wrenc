@@ -1,0 +1,24 @@
+[package]
+name = "rwc"
+version = "0.1.0"
+authors = ["Hajime Kato <hjmkt3126@gmail.com>"]
+edition = "2021"
+description = "H.266/VVC encoder"
+
+[dependencies]
+clap = { version = "3", features = ["derive"] }
+colored = "*"
+num = "*"
+lazy_static = "*"
+num-traits = "0.2"
+num-derive = "0.3"
+debug_print = "1.0.0"
+rand = "*"
+
+[profile.dev]
+debug = true
+opt-level = 3
+
+[profile.release]
+opt-level = 3
+lto = true

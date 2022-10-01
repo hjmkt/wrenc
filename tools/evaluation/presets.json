@@ -1,0 +1,21 @@
+{
+  "rwc_fixed_qp": {
+    "target": "rwc",
+    "command": "rwc_fixed_qp.sh",
+    "base": "qp",
+    "parameters": {
+      "qp": [20, 23, 26, 29, 32, 35, 38, 41],
+      "max_split_depth": [3],
+      "extra_params": []
+    }
+  },
+  "x264_intra_fixed_qp": {
+    "target": "x264",
+    "command": "x264_intra_fixed_qp.sh",
+    "base": "qp",
+    "parameters": {
+      "qp": [26, 29, 32, 35, 38, 41, 44, 47],
+      "preset": ["superfast"]
+    }
+  }
+}
