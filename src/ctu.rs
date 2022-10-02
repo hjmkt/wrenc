@@ -342,7 +342,6 @@ pub struct TransformUnit {
     pub transformed_coeffs: Vec<Vec2d<i16>>,
     pub itransformed_coeffs: Vec<Vec2d<i16>>,
     pub residuals: Vec<Vec2d<i16>>,
-    //pub reconstructs: Vec<Vec2d<u8>>,
     pub tile: Option<Arc<Mutex<Tile>>>,
     pub ctu: Arc<Mutex<CodingTreeUnit>>,
     pub cu: Arc<Mutex<CodingUnit>>,
@@ -468,11 +467,6 @@ impl TransformUnit {
             transformed_coeffs: v.clone(),
             itransformed_coeffs: v.clone(),
             residuals: v,
-            //reconstructs: vec![
-            //vec2d![0; luma_height; luma_width],
-            //vec2d![0; chroma_height; chroma_width],
-            //vec2d![0; chroma_height; chroma_width],
-            //],
             tile,
             cu,
             above_right_available: RefCell::new(None),
@@ -606,26 +600,6 @@ impl TransformUnit {
         }
     }
 
-    //#[inline(always)]
-    //pub fn get_component_width(&self, c_idx: usize) -> usize {
-    //if c_idx == 0 {
-    //self.width
-    //} else {
-    //// FIXME
-    //self.width / 2
-    //}
-    //}
-
-    //#[inline(always)]
-    //pub fn get_component_height(&self, c_idx: usize) -> usize {
-    //if c_idx == 0 {
-    //self.height
-    //} else {
-    //// FIXME
-    //self.height / 2
-    //}
-    //}
-
     #[inline(always)]
     pub fn get_component_pos(&self, c_idx: usize) -> (usize, usize) {
         if c_idx == 0 {
@@ -636,35 +610,10 @@ impl TransformUnit {
         }
     }
 
-    //#[inline(always)]
-    //pub fn get_component_x(&self, c_idx: usize) -> usize {
-    //if c_idx == 0 {
-    //self.x
-    //} else {
-    //// FIXME
-    //self.x / 2
-    //}
-    //}
-
-    //#[inline(always)]
-    //pub fn get_component_y(&self, c_idx: usize) -> usize {
-    //if c_idx == 0 {
-    //self.y
-    //} else {
-    //// FIXME
-    //self.y / 2
-    //}
-    //}
-
     #[inline(always)]
     pub fn get_cu(&self) -> Arc<Mutex<CodingUnit>> {
         self.cu.clone()
     }
-
-    //#[inline(always)]
-    //pub fn get_ctu(&self) -> Arc<Mutex<CodingTreeUnit>> {
-    //self.ctu.clone()
-    //}
 
     #[inline(always)]
     pub fn get_tile(&self) -> Arc<Mutex<Tile>> {
@@ -1143,12 +1092,6 @@ impl TransformTree {
         }
     }
 
-    //#[inline(always)]
-    //pub fn get_tile(&self) -> Arc<Mutex<Tile>> {
-    //let tile = self.tile.as_ref().unwrap();
-    //tile.clone()
-    //}
-
     pub fn is_below_left_available(&self) -> bool {
         if let Some(available) = *self.below_left_available.borrow() {
             return available;
@@ -1315,9 +1258,6 @@ pub struct CodingUnit {
     pub mode_type: ModeType,
     pub tree_type: TreeType,
     pub parent: Arc<Mutex<CodingTree>>,
-    //pub pred_pixels: Vec<Vec2d<usize>>,
-    //pub original_pixels: Vec<Vec2d<usize>>,
-    //pub reconst_pixels: Vec<Vec2d<usize>>,
     pub intra_pred_mode: [IntraPredMode; 3],
     pub qp_y: usize,
     pub tile: Option<Arc<Mutex<Tile>>>,
@@ -1407,21 +1347,6 @@ impl CodingUnit {
             mode_type: ModeType::MODE_INTRA,
             tree_type,
             parent,
-            //pred_pixels: vec![
-            //vec2d![0; 1 << log2_height; 1 << log2_width],
-            //vec2d![0; 1 << (log2_height-1); 1 << (log2_width-1)],
-            //vec2d![0; 1 << (log2_height-1); 1 << (log2_width-1)],
-            //],
-            //original_pixels: vec![
-            //vec2d![0; 1 << log2_height; 1 << log2_width],
-            //vec2d![0; 1 << (log2_height-1); 1 << (log2_width-1)],
-            //vec2d![0; 1 << (log2_height-1); 1 << (log2_width-1)],
-            //],
-            //reconst_pixels: vec![
-            //vec2d![0; 1 << log2_height; 1 << log2_width],
-            //vec2d![0; 1 << (log2_height-1); 1 << (log2_width-1)],
-            //vec2d![0; 1 << (log2_height-1); 1 << (log2_width-1)],
-            //],
             intra_pred_mode: [IntraPredMode::PLANAR; 3],
             qp_y: qp,
             tile: tile.clone(),
@@ -1553,13 +1478,6 @@ impl CodingUnit {
         if self.intra_pred_mode[0] == IntraPredMode::PLANAR {
             return (true, 0, 0);
         }
-        //if self.get_bdpcm_flag(1) {
-        //if self.get_bdpcm_dir(1) {
-        //IntraPredMode::ANGULAR50
-        //} else {
-        //IntraPredMode::ANGULAR18
-        //}
-        //}
         let tile = self.tile.as_ref().unwrap();
         let tile = tile.lock().unwrap();
         let left_cu = tile.get_cu(self.x as isize - 1, (self.y + self.height - 1) as isize);
@@ -1801,12 +1719,6 @@ impl CodingUnit {
         }
     }
 
-    //#[inline(always)]
-    //pub fn get_tile(&self) -> Arc<Mutex<Tile>> {
-    //let tile = self.tile.as_ref().unwrap();
-    //tile.clone()
-    //}
-
     #[inline(always)]
     pub fn get_ctu(&self) -> Arc<Mutex<CodingTreeUnit>> {
         if let Some(ctu) = &self.ctu {
@@ -1846,26 +1758,6 @@ impl CodingUnit {
         }
     }
 
-    //#[inline(always)]
-    //pub fn get_component_width(&self, c_idx: usize) -> usize {
-    //if c_idx == 0 {
-    //self.width
-    //} else {
-    //// FIXME
-    //self.width / 2
-    //}
-    //}
-
-    //#[inline(always)]
-    //pub fn get_component_height(&self, c_idx: usize) -> usize {
-    //if c_idx == 0 {
-    //self.height
-    //} else {
-    //// FIXME
-    //self.height / 2
-    //}
-    //}
-
     #[inline(always)]
     pub fn get_component_pos(&self, c_idx: usize) -> (usize, usize) {
         if c_idx == 0 {
@@ -1875,26 +1767,6 @@ impl CodingUnit {
             (self.x / 2, self.y / 2)
         }
     }
-
-    //#[inline(always)]
-    //pub fn get_component_x(&self, c_idx: usize) -> usize {
-    //if c_idx == 0 {
-    //self.x
-    //} else {
-    //// FIXME
-    //self.x / 2
-    //}
-    //}
-
-    //#[inline(always)]
-    //pub fn get_component_y(&self, c_idx: usize) -> usize {
-    //if c_idx == 0 {
-    //self.y
-    //} else {
-    //// FIXME
-    //self.y / 2
-    //}
-    //}
 }
 
 #[derive(Clone)]
@@ -2117,7 +1989,6 @@ impl CodingTree {
         }
         if self.mode_type == ModeType::MODE_TYPE_ALL && mode_type == ModeType::MODE_TYPE_INTRA {
             tree_type = TreeType::DUAL_TREE_CHROMA;
-            //mode_type = self.mode_type;
             match split_mode {
                 MttSplitMode::SPLIT_QT => {
                     // FIXME separate variable for dual trees
@@ -2167,32 +2038,6 @@ impl CodingTree {
         self.width_tile = tile.num_ctu_cols << tile.log2_ctu_size;
         self.height_tile = tile.num_ctu_rows << tile.log2_ctu_size;
     }
-
-    //#[inline(always)]
-    //pub fn get_tile(&self) -> Arc<Mutex<Tile>> {
-    //let tile = self.tile.as_ref().unwrap();
-    //tile.clone()
-    //}
-
-    //#[inline(always)]
-    //pub fn get_component_pos(&self, c_idx: usize) -> (usize, usize) {
-    //if c_idx == 0 {
-    //(self.x, self.y)
-    //} else {
-    //// FIXME
-    //(self.x / 2, self.y / 2)
-    //}
-    //}
-
-    //#[inline(always)]
-    //pub fn get_component_size(&self, c_idx: usize) -> (usize, usize) {
-    //if c_idx == 0 {
-    //(self.width, self.height)
-    //} else {
-    //// FIXME
-    //(self.width / 2, self.height / 2)
-    //}
-    //}
 
     pub fn is_below_left_available(&self) -> bool {
         if let Some(available) = *self.below_left_available.borrow() {

@@ -29,7 +29,7 @@ impl BlockSplitter {
         sh: &SliceHeader,
         ectx: &mut EncoderContext,
     ) -> f32 {
-        let (tu, non_planar_flag, (mpm_flag, _mpm_idx, mpm_remainder)) = {
+        let (tu, non_planar_flag, (mpm_flag, mpm_idx, mpm_remainder)) = {
             let cu = {
                 let ct = ct.lock().unwrap();
                 ct.cus[0].clone()
@@ -88,17 +88,17 @@ impl BlockSplitter {
             }
         }
         let mode_bits = if non_planar_flag {
-            2.0 + if mpm_flag {
-                5.0f32.log2()
+            2.6 + if mpm_flag {
+                (mpm_idx as f32 + 1.45).log2()
             } else {
-                0.6 * (mpm_remainder as f32 + 2.3).log2()
+                0.65 * (mpm_remainder as f32 + 2.6).log2()
             }
         } else {
-            1.0
+            0.6
         };
         let header_bits = match ectx.extra_params.get("b") {
             Some(beta) => beta.parse::<f32>().unwrap(),
-            _ => 1.753,
+            _ => 1.76,
         }; // FIXME estimate additional header bits for coding units
         let header_bits = {
             let ct = ct.lock().unwrap();
@@ -113,17 +113,15 @@ impl BlockSplitter {
             .iter()
             .flat_map(|a| {
                 a.data.iter().map(|v| {
-                    let v = v.unsigned_abs() as usize;
-                    let b = if v == 0 { 0 } else { v.ilog2() + 1 };
-                    //let b = v.ilog2() + 1;
-                    b as usize
+                    let v = v.unsigned_abs() as f32;
+                    (v + 0.65).log2()
                 })
             })
-            .sum::<usize>() as f32
+            .sum::<f32>() as f32
             + header_bits;
         let gamma = match ectx.extra_params.get("c") {
             Some(gamma) => gamma.parse::<f32>().unwrap(),
-            _ => 0.954,
+            _ => 0.93,
         };
         let d = 6.0 * gamma;
         let lambda = match ectx.extra_params.get("a") {
@@ -154,97 +152,35 @@ impl BlockSplitter {
                 };
                 let luma_cu = luma_cu.as_ref().unwrap();
                 let luma_cu = luma_cu.lock().unwrap();
-                //let luma_pred_mode = luma_cu.intra_pred_mode[0];
-                // FIXME
                 let (chroma_pred_mode, _) =
                     luma_cu.get_intra_chroma_pred_mode_and_mip_chroma_direct_mode_flag();
-                match chroma_pred_mode {
-                    IntraPredMode::PLANAR => {
-                        let modes = {
-                            let cu = {
-                                let ct = ct.lock().unwrap();
-                                ct.cus[0].clone()
-                            };
-                            let cu = &mut cu.lock().unwrap();
-                            let luma_pred_mode = cu.intra_pred_mode[0];
-                            let modes =
-                                [luma_pred_mode, IntraPredMode::PLANAR, IntraPredMode::PLANAR];
-                            cu.set_intra_pred_mode(modes);
-                            modes
-                        };
-                        self.get_intra_pred_cost(modes, ct, sh, ectx)
-                    }
-                    IntraPredMode::DC => {
-                        let modes = {
-                            let cu = {
-                                let ct = ct.lock().unwrap();
-                                ct.cus[0].clone()
-                            };
-                            let cu = &mut cu.lock().unwrap();
-                            let luma_pred_mode = cu.intra_pred_mode[0];
-                            let modes = [luma_pred_mode, IntraPredMode::DC, IntraPredMode::DC];
-                            cu.set_intra_pred_mode(modes);
-                            modes
-                        };
-                        self.get_intra_pred_cost(modes, ct, sh, ectx)
-                    }
-                    pred_mode => {
-                        let m = pred_mode as usize;
-                        if m <= 66 {
-                            let modes = {
-                                let cu = {
-                                    let ct = ct.lock().unwrap();
-                                    ct.cus[0].clone()
-                                };
-                                let cu = &mut cu.lock().unwrap();
-                                let luma_pred_mode = cu.intra_pred_mode[0];
-                                let modes = [luma_pred_mode, pred_mode, pred_mode];
-                                cu.set_intra_pred_mode(modes);
-                                modes
-                            };
-                            self.get_intra_pred_cost(modes, ct, sh, ectx)
-                        } else {
-                            panic!();
-                        }
-                    }
-                }
+                let modes = {
+                    let cu = {
+                        let ct = ct.lock().unwrap();
+                        ct.cus[0].clone()
+                    };
+                    let cu = &mut cu.lock().unwrap();
+                    let luma_pred_mode = cu.intra_pred_mode[0];
+                    let modes = [luma_pred_mode, chroma_pred_mode, chroma_pred_mode];
+                    cu.set_intra_pred_mode(modes);
+                    modes
+                };
+                self.get_intra_pred_cost(modes, ct, sh, ectx)
             } else {
-                let angular2_cost =
-                    self.get_intra_pred_cost([IntraPredMode::ANGULAR2; 3], ct, sh, ectx);
-                let angular10_cost =
-                    self.get_intra_pred_cost([IntraPredMode::ANGULAR10; 3], ct, sh, ectx);
-                let angular18_cost =
-                    self.get_intra_pred_cost([IntraPredMode::ANGULAR18; 3], ct, sh, ectx);
-                let angular26_cost =
-                    self.get_intra_pred_cost([IntraPredMode::ANGULAR26; 3], ct, sh, ectx);
-                let angular34_cost =
-                    self.get_intra_pred_cost([IntraPredMode::ANGULAR34; 3], ct, sh, ectx);
-                let angular42_cost =
-                    self.get_intra_pred_cost([IntraPredMode::ANGULAR42; 3], ct, sh, ectx);
-                let angular50_cost =
-                    self.get_intra_pred_cost([IntraPredMode::ANGULAR50; 3], ct, sh, ectx);
-                let angular58_cost =
-                    self.get_intra_pred_cost([IntraPredMode::ANGULAR58; 3], ct, sh, ectx);
-                let angular66_cost =
-                    self.get_intra_pred_cost([IntraPredMode::ANGULAR66; 3], ct, sh, ectx);
-                let dc_cost = self.get_intra_pred_cost([IntraPredMode::DC; 3], ct, sh, ectx);
-                let planar_cost =
-                    self.get_intra_pred_cost([IntraPredMode::PLANAR; 3], ct, sh, ectx);
-                let min_cost = [
-                    angular2_cost,
-                    angular10_cost,
-                    angular18_cost,
-                    angular26_cost,
-                    angular34_cost,
-                    angular42_cost,
-                    angular50_cost,
-                    angular58_cost,
-                    angular66_cost,
-                    dc_cost,
-                    planar_cost,
-                ]
-                .iter()
-                .fold(f32::MAX, |m, v| v.min(m));
+                let cand_modes = [0, 1, 2, 10, 18, 26, 34, 42, 50, 58, 66];
+                let cand_costs = cand_modes
+                    .iter()
+                    .map(|m| {
+                        let mode = num::FromPrimitive::from_usize(*m).unwrap();
+                        self.get_intra_pred_cost([mode; 3], ct, sh, ectx)
+                    })
+                    .collect::<Vec<f32>>();
+                let min_dir_cost = cand_costs[2..].iter().fold(f32::MAX, |m, v| v.min(m));
+                let min_dir_cost_idx = cand_costs[2..]
+                    .iter()
+                    .position(|x| x == &min_dir_cost)
+                    .unwrap()
+                    + 2;
                 let mut step_search =
                     |current_mode: usize, step: usize, current_cost: f32| -> (usize, f32) {
                         let (mut current_mode, mut step, mut current_cost) =
@@ -308,144 +244,27 @@ impl BlockSplitter {
                         }
                         (current_mode, current_cost)
                     };
-                if planar_cost == min_cost {
-                    // skip updating cu as its intra pred mode is already set as planar
-                    //{
-                    //let cu = {
-                    //let ct = ct.lock().unwrap();
-                    //ct.cus[0].clone()
-                    //};
-                    //let cu = &mut cu.lock().unwrap();
-                    //cu.set_intra_pred_mode([IntraPredMode::PLANAR; 3]);
-                    //}
-                    planar_cost
-                } else if angular2_cost == min_cost {
-                    let (best_mode, min_cost) = step_search(2, 4, min_cost);
-                    {
-                        let cu = {
-                            let ct = ct.lock().unwrap();
-                            ct.cus[0].clone()
-                        };
-                        let cu = &mut cu.lock().unwrap();
-                        cu.set_intra_pred_mode(
-                            [num::FromPrimitive::from_usize(best_mode).unwrap(); 3],
-                        );
-                    }
+                let (dir_mode, dir_cost) =
+                    step_search(cand_modes[min_dir_cost_idx], 4, min_dir_cost);
+                let cand_modes = [0, 1, dir_mode];
+                let cand_costs = [cand_costs[0], cand_costs[1], dir_cost];
+                let min_cost = cand_costs.iter().fold(f32::MAX, |m, v| v.min(m));
+                let min_cost_idx = cand_costs.iter().position(|x| x == &min_cost).unwrap();
+                let cu = {
+                    let ct = ct.lock().unwrap();
+                    ct.cus[0].clone()
+                };
+                let cu = &mut cu.lock().unwrap();
+                if cand_modes[min_cost_idx] == 0 {
+                    cu.set_intra_pred_mode([IntraPredMode::PLANAR; 3]);
                     min_cost
-                } else if angular10_cost == min_cost {
-                    let (best_mode, min_cost) = step_search(10, 4, min_cost);
-                    {
-                        let cu = {
-                            let ct = ct.lock().unwrap();
-                            ct.cus[0].clone()
-                        };
-                        let cu = &mut cu.lock().unwrap();
-                        cu.set_intra_pred_mode(
-                            [num::FromPrimitive::from_usize(best_mode).unwrap(); 3],
-                        );
-                    }
-                    min_cost
-                } else if angular18_cost == min_cost {
-                    let (best_mode, min_cost) = step_search(18, 4, min_cost);
-                    {
-                        let cu = {
-                            let ct = ct.lock().unwrap();
-                            ct.cus[0].clone()
-                        };
-                        let cu = &mut cu.lock().unwrap();
-                        cu.set_intra_pred_mode(
-                            [num::FromPrimitive::from_usize(best_mode).unwrap(); 3],
-                        );
-                    }
-                    min_cost
-                } else if angular26_cost == min_cost {
-                    let (best_mode, min_cost) = step_search(26, 4, min_cost);
-                    {
-                        let cu = {
-                            let ct = ct.lock().unwrap();
-                            ct.cus[0].clone()
-                        };
-                        let cu = &mut cu.lock().unwrap();
-                        cu.set_intra_pred_mode(
-                            [num::FromPrimitive::from_usize(best_mode).unwrap(); 3],
-                        );
-                    }
-                    min_cost
-                } else if angular34_cost == min_cost {
-                    let (best_mode, min_cost) = step_search(34, 4, min_cost);
-                    {
-                        let cu = {
-                            let ct = ct.lock().unwrap();
-                            ct.cus[0].clone()
-                        };
-                        let cu = &mut cu.lock().unwrap();
-                        cu.set_intra_pred_mode(
-                            [num::FromPrimitive::from_usize(best_mode).unwrap(); 3],
-                        );
-                    }
-                    min_cost
-                } else if angular42_cost == min_cost {
-                    let (best_mode, min_cost) = step_search(42, 4, min_cost);
-                    {
-                        let cu = {
-                            let ct = ct.lock().unwrap();
-                            ct.cus[0].clone()
-                        };
-                        let cu = &mut cu.lock().unwrap();
-                        cu.set_intra_pred_mode(
-                            [num::FromPrimitive::from_usize(best_mode).unwrap(); 3],
-                        );
-                    }
-                    min_cost
-                } else if angular50_cost == min_cost {
-                    let (best_mode, min_cost) = step_search(50, 4, min_cost);
-                    {
-                        let cu = {
-                            let ct = ct.lock().unwrap();
-                            ct.cus[0].clone()
-                        };
-                        let cu = &mut cu.lock().unwrap();
-                        cu.set_intra_pred_mode(
-                            [num::FromPrimitive::from_usize(best_mode).unwrap(); 3],
-                        );
-                    }
-                    min_cost
-                } else if angular58_cost == min_cost {
-                    let (best_mode, min_cost) = step_search(58, 4, min_cost);
-                    {
-                        let cu = {
-                            let ct = ct.lock().unwrap();
-                            ct.cus[0].clone()
-                        };
-                        let cu = &mut cu.lock().unwrap();
-                        cu.set_intra_pred_mode(
-                            [num::FromPrimitive::from_usize(best_mode).unwrap(); 3],
-                        );
-                    }
-                    min_cost
-                } else if angular66_cost == min_cost {
-                    let (best_mode, min_cost) = step_search(66, 4, min_cost);
-                    {
-                        let cu = {
-                            let ct = ct.lock().unwrap();
-                            ct.cus[0].clone()
-                        };
-                        let cu = &mut cu.lock().unwrap();
-                        cu.set_intra_pred_mode(
-                            [num::FromPrimitive::from_usize(best_mode).unwrap(); 3],
-                        );
-                    }
+                } else if cand_modes[min_cost_idx] == 1 {
+                    cu.set_intra_pred_mode([IntraPredMode::DC; 3]);
                     min_cost
                 } else {
-                    {
-                        let cu = {
-                            let ct = ct.lock().unwrap();
-                            ct.cus[0].clone()
-                        };
-                        let cu = &mut cu.lock().unwrap();
-                        cu.set_intra_pred_mode([IntraPredMode::DC; 3]);
-                    }
-                    dc_cost
+                    let (best_mode, min_cost) = (dir_mode, dir_cost);
+                    cu.set_intra_pred_mode([num::FromPrimitive::from_usize(best_mode).unwrap(); 3]);
+                    min_cost
                 }
             }
         } else {
