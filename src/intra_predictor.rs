@@ -1576,4 +1576,430 @@ impl IntraPredictor {
             println!();
         }
     }
+
+    pub fn predict_cclm(
+        &mut self,
+        tu: &mut TransformUnit,
+        c_idx: usize,
+        ref_idx: usize,
+        tile_pred_pixels: &mut Vec2d<u8>,
+        tile_reconst_pixels: &Vec2d<u8>,
+        sps: &SequenceParameterSet,
+        pps: &PictureParameterSet,
+        ectx: &mut EncoderContext,
+    ) {
+        self.set_left_and_above_ref_samples(
+            tu,
+            c_idx,
+            ref_idx,
+            tile_reconst_pixels,
+            sps,
+            pps,
+            ectx,
+        );
+        let (tw, th) = tu.get_component_size(c_idx);
+        let (tx, ty) = tu.get_component_pos(c_idx);
+        if ectx.enable_print {
+            println!("pred dc {}x{} @ ({},{})", tw, th, tx, ty);
+        }
+        ectx.enable_print = false;
+        let lrs = self.left_ref_filtered_samples.clone();
+        let lrs = &lrs.borrow();
+        let alrs = lrs[0];
+        let lrs = &lrs[ref_idx + 1..ref_idx + 1 + th];
+        let ars = self.above_ref_filtered_samples.clone();
+        let ars = &ars.borrow()[ref_idx..ref_idx + tw];
+        let avail_l = ectx.derive_neighbouring_block_availability(
+            tu.x,
+            tu.y,
+            tu.x as isize - 1,
+            tu.y as isize,
+            tu.width,
+            tu.height,
+            false,
+            false,
+            false,
+            sps,
+            pps,
+        );
+        let avail_t = ectx.derive_neighbouring_block_availability(
+            tu.x,
+            tu.y,
+            tu.x as isize,
+            tu.y as isize - 1,
+            tu.width,
+            tu.height,
+            false,
+            false,
+            false,
+            sps,
+            pps,
+        );
+        let mut num_top_right = 0;
+        let mut avail_tr = true;
+        if tu.cu_intra_pred_mode[c_idx] == IntraPredMode::T_CCLM {
+            let is_above_right_available = tu.is_above_right_available();
+            let is_below_left_available = tu.is_below_left_available();
+            for x in tw..2 * tw {
+                if !avail_tr {
+                    break;
+                }
+                let available = ectx.derive_neighbouring_block_availability(
+                    tu.x,
+                    tu.y,
+                    (tu.x + x * 2) as isize,
+                    tu.y as isize - 1,
+                    tu.width,
+                    tu.height,
+                    is_above_right_available,
+                    is_below_left_available,
+                    false,
+                    sps,
+                    pps,
+                );
+                avail_tr = available;
+                if avail_tr {
+                    num_top_right += 1;
+                }
+            }
+        }
+        let mut num_below_left = 0;
+        let mut avail_bl = true;
+        if tu.cu_intra_pred_mode[c_idx] == IntraPredMode::L_CCLM {
+            let is_above_right_available = tu.is_above_right_available();
+            let is_below_left_available = tu.is_below_left_available();
+            for y in th..2 * th {
+                if !avail_bl {
+                    break;
+                }
+                let available = ectx.derive_neighbouring_block_availability(
+                    tu.x,
+                    tu.y,
+                    tu.x as isize - 1,
+                    (tu.y + y * 2) as isize,
+                    tu.width,
+                    tu.height,
+                    is_above_right_available,
+                    is_below_left_available,
+                    false,
+                    sps,
+                    pps,
+                );
+                avail_bl = available;
+                if avail_bl {
+                    num_below_left += 1;
+                }
+            }
+        }
+        let (num_samp_t, num_samp_l) = if tu.cu_intra_pred_mode[c_idx] == IntraPredMode::LT_CCLM {
+            (if avail_t { tw } else { 0 }, if avail_l { th } else { 0 })
+        } else {
+            (
+                if avail_t && tu.cu_intra_pred_mode[c_idx] == IntraPredMode::T_CCLM {
+                    tw + num_top_right.min(th)
+                } else {
+                    0
+                },
+                if avail_l && tu.cu_intra_pred_mode[c_idx] == IntraPredMode::L_CCLM {
+                    th + num_below_left.min(tw)
+                } else {
+                    0
+                },
+            )
+        };
+        let b_ctu_boundary = tu.y & (ectx.ctb_size_y - 1) == 0;
+        let num_is_4t =
+            !(avail_t && avail_l && tu.cu_intra_pred_mode[c_idx] == IntraPredMode::LT_CCLM);
+        let start_pos_t = num_samp_t >> (2 + num_is_4t as usize);
+        let pick_step_t = (num_samp_t >> (1 + num_is_4t as usize)).max(1);
+        let (cnt_t, pick_pos_t) = if avail_t
+            && (tu.cu_intra_pred_mode[c_idx] == IntraPredMode::LT_CCLM
+                || tu.cu_intra_pred_mode[c_idx] == IntraPredMode::T_CCLM)
+        {
+            let cnt_t = ((1 + num_is_4t as usize) << 1).min(num_samp_t);
+            (
+                cnt_t,
+                (0..cnt_t)
+                    .map(|pos| start_pos_t + pos * pick_step_t)
+                    .collect::<Vec<usize>>(),
+            )
+        } else {
+            (0, vec![])
+        };
+        let num_is_4l =
+            !(avail_t && avail_l && tu.cu_intra_pred_mode[c_idx] == IntraPredMode::LT_CCLM);
+        let start_pos_l = num_samp_l >> (2 + num_is_4l as usize);
+        let pick_step_l = (num_samp_l >> (1 + num_is_4l as usize)).max(1);
+        let (cnt_l, pick_pos_l) = if avail_l
+            && (tu.cu_intra_pred_mode[c_idx] == IntraPredMode::LT_CCLM
+                || tu.cu_intra_pred_mode[c_idx] == IntraPredMode::L_CCLM)
+        {
+            let cnt_l = ((1 + num_is_4l as usize) << 1).min(num_samp_l);
+            (
+                cnt_l,
+                (0..cnt_l)
+                    .map(|pos| start_pos_l + pos * pick_step_l)
+                    .collect::<Vec<usize>>(),
+            )
+        } else {
+            (0, vec![])
+        };
+
+        if num_samp_l == 0 && num_samp_t == 0 {
+            for y in 0..th {
+                for x in 0..tw {
+                    tile_pred_pixels[ty + y][tx + x] = 1 << (ectx.bit_depth - 1);
+                }
+            }
+        } else {
+            let mut p_y_xm3_ym2 = vec2d![0isize; th+2; tw+3];
+            let ox = 3;
+            let oy = 2;
+            if avail_l {
+                for y in (if avail_t { -1 } else { 0 })
+                    ..(ectx.sub_height_c * num_samp_l.max(th)) as isize
+                {
+                    for x in -3..=-1 {
+                        // use reconstructed pixels before deblocking
+                        p_y_xm3_ym2[(y + oy) as usize][(x + ox) as usize] =
+                            tile_reconst_pixels[(tu.y as isize + y) as usize]
+                                [(tu.x as isize + x) as usize] as isize;
+                    }
+                }
+            }
+            if !avail_t {
+                for y in -2..=-1 {
+                    for x in -2..=(ectx.sub_width_c * tw) as isize {
+                        // use reconstructed pixels before deblocking
+                        p_y_xm3_ym2[(y + oy) as usize][(x + ox) as usize] =
+                            p_y_xm3_ym2[oy as usize][(x + ox) as usize];
+                    }
+                }
+            }
+            if avail_t {
+                for y in -3..=-1 {
+                    for x in (if avail_l { -1 } else { 0 })
+                        ..(ectx.sub_width_c * num_samp_t.max(tw)) as isize
+                    {
+                        // use reconstructed pixels before deblocking
+                        p_y_xm3_ym2[(y + oy) as usize][(x + ox) as usize] =
+                            tile_reconst_pixels[(tu.y as isize + y) as usize]
+                                [(tu.x as isize + x) as usize] as isize;
+                    }
+                }
+            }
+            if !avail_l {
+                for y in -2..=(ectx.sub_height_c * th) as isize {
+                    let x = -1;
+                    // use reconstructed pixels before deblocking
+                    p_y_xm3_ym2[(y + oy) as usize][(x + ox) as usize] =
+                        p_y_xm3_ym2[(y + oy) as usize][ox as usize];
+                }
+            }
+
+            let mut p_ds_y = vec2d![0; th; tw];
+            if ectx.sub_width_c == 1 && ectx.sub_height_c == 1 {
+                for y in 0..th {
+                    for x in 0..tw {
+                        p_ds_y[y][x] =
+                            p_y_xm3_ym2[(y as isize + oy) as usize][(x as isize + ox) as usize];
+                    }
+                }
+            } else if ectx.sub_height_c == 1 {
+                for y in 0..th {
+                    for x in 0..tw {
+                        let sx = (ectx.sub_width_c * x) as isize + ox;
+                        p_ds_y[y][x] = (p_y_xm3_ym2[(y as isize + oy) as usize]
+                            [(sx as isize - 1) as usize]
+                            + p_y_xm3_ym2[(y as isize + oy) as usize][(sx as isize) as usize] * 2
+                            + p_y_xm3_ym2[(y as isize + oy) as usize][(sx as isize + 1) as usize]
+                            + 2)
+                            >> 2;
+                    }
+                }
+            } else if sps.chroma_vertical_collocated_flag {
+                for y in 0..th {
+                    for x in 0..tw {
+                        let sx = (ectx.sub_width_c * x) as isize + ox;
+                        p_ds_y[y][x] = (p_y_xm3_ym2[(y as isize - 1 + oy) as usize]
+                            [(sx as isize) as usize]
+                            + p_y_xm3_ym2[(y as isize + oy) as usize][(sx as isize - 1) as usize]
+                            + p_y_xm3_ym2[(y as isize + oy) as usize][(sx as isize) as usize] * 4
+                            + p_y_xm3_ym2[(y as isize + oy) as usize][(sx as isize + 1) as usize]
+                            + p_y_xm3_ym2[(y as isize + 1 + oy) as usize][(sx as isize) as usize]
+                            + 4)
+                            >> 3;
+                    }
+                }
+            } else {
+                for y in 0..th {
+                    for x in 0..tw {
+                        let sx = (ectx.sub_width_c * x) as isize + ox;
+                        p_ds_y[y][x] = (p_y_xm3_ym2[(y as isize + oy) as usize]
+                            [(sx as isize - 1) as usize]
+                            + p_y_xm3_ym2[(y as isize + 1 + oy) as usize]
+                                [(sx as isize - 1) as usize]
+                            + p_y_xm3_ym2[(y as isize + oy) as usize][(sx as isize) as usize] * 2
+                            + p_y_xm3_ym2[(y as isize + 1 + oy) as usize][(sx as isize) as usize]
+                                * 2
+                            + p_y_xm3_ym2[(y as isize + oy) as usize][(sx as isize + 1) as usize]
+                            + p_y_xm3_ym2[(y as isize + 1 + oy) as usize]
+                                [(sx as isize + 1) as usize]
+                            + 4)
+                            >> 3;
+                    }
+                }
+            }
+
+            let mut p_sel_ds_y = vec![];
+            let mut p_sel_c = vec![0; cnt_t + cnt_l];
+            if num_samp_t > 0 {
+                for idx in 0..cnt_t {
+                    p_sel_c[idx] =
+                        p_y_xm3_ym2[(oy - 1) as usize][(pick_pos_t[idx] as isize + ox) as usize];
+                }
+                p_sel_ds_y = vec![0; cnt_t];
+                for idx in 0..cnt_t {
+                    let x = pick_pos_t[idx];
+                    let sx = (ectx.sub_width_c * x) as isize + ox;
+                    if ectx.sub_width_c == 1 && ectx.sub_height_c == 1 {
+                        p_sel_ds_y[idx] =
+                            p_y_xm3_ym2[(oy - 1) as usize][(x as isize + ox) as usize];
+                    } else if ectx.sub_height_c != 1 && !b_ctu_boundary {
+                        if sps.chroma_vertical_collocated_flag {
+                            p_sel_ds_y[idx] = (p_y_xm3_ym2[(oy - 3) as usize][sx as usize]
+                                + p_y_xm3_ym2[(oy - 2) as usize][(sx - 1) as usize]
+                                + p_y_xm3_ym2[(oy - 2) as usize][sx as usize] * 4
+                                + p_y_xm3_ym2[(oy - 2) as usize][(sx + 1) as usize]
+                                + p_y_xm3_ym2[(oy - 1) as usize][sx as usize]
+                                + 4)
+                                >> 3;
+                        } else {
+                            p_sel_ds_y[idx] = (p_y_xm3_ym2[(oy - 1) as usize][(sx - 1) as usize]
+                                + p_y_xm3_ym2[(oy - 2) as usize][(sx - 1) as usize]
+                                + p_y_xm3_ym2[(oy - 1) as usize][sx as usize] * 2
+                                + p_y_xm3_ym2[(oy - 2) as usize][sx as usize] * 2
+                                + p_y_xm3_ym2[(oy - 1) as usize][(sx + 1) as usize]
+                                + p_y_xm3_ym2[(oy - 2) as usize][(sx + 1) as usize]
+                                + 4)
+                                >> 3;
+                        }
+                    } else {
+                        p_sel_ds_y[idx] = (p_y_xm3_ym2[(oy - 1) as usize][(sx - 1) as usize]
+                            + p_y_xm3_ym2[(oy - 1) as usize][sx as usize] * 2
+                            + p_y_xm3_ym2[(oy - 1) as usize][(sx + 1) as usize]
+                            + 2)
+                            >> 2;
+                    }
+                }
+            }
+            if num_samp_l > 0 {
+                for idx in cnt_t..cnt_t + cnt_l {
+                    p_sel_c[idx] = p_y_xm3_ym2[(pick_pos_l[idx - cnt_t] as isize + oy) as usize]
+                        [(ox - 1) as usize];
+                }
+                p_sel_ds_y = vec![0; cnt_t];
+                for idx in cnt_t..cnt_t + cnt_l {
+                    let y = pick_pos_l[idx - cnt_t];
+                    let sy = (ectx.sub_height_c * y) as isize + oy;
+                    if ectx.sub_width_c == 1 && ectx.sub_height_c == 1 {
+                        p_sel_ds_y[idx] = p_y_xm3_ym2[sy as usize][(ox - 1) as usize];
+                    } else if ectx.sub_height_c == 1 {
+                        p_sel_ds_y[idx] = (p_y_xm3_ym2[(y as isize + oy) as usize]
+                            [(ox - 1 - ectx.sub_width_c as isize) as usize]
+                            + p_y_xm3_ym2[(y as isize + oy) as usize]
+                                [(ox - ectx.sub_width_c as isize) as usize]
+                                * 2
+                            + p_y_xm3_ym2[(y as isize + oy) as usize]
+                                [(ox + 1 - ectx.sub_width_c as isize) as usize]
+                            + 2)
+                            >> 2;
+                    } else {
+                        let sx = -(ectx.sub_width_c as isize) + ox;
+                        let sy = (y * ectx.sub_height_c) as isize + oy;
+                        if sps.chroma_vertical_collocated_flag {
+                            p_sel_ds_y[idx] = (p_y_xm3_ym2[(sy - 1) as usize][sx as usize]
+                                + p_y_xm3_ym2[sy as usize][(sx - 1) as usize]
+                                + p_y_xm3_ym2[sy as usize][sx as usize] * 4
+                                + p_y_xm3_ym2[sy as usize][(sx + 1) as usize]
+                                + p_y_xm3_ym2[(sy + 1) as usize][sx as usize]
+                                + 4)
+                                >> 3;
+                        } else {
+                            p_sel_ds_y[idx] = (p_y_xm3_ym2[sy as usize][(sx - 1) as usize]
+                                + p_y_xm3_ym2[(sy + 1) as usize][(sx - 1) as usize]
+                                + p_y_xm3_ym2[sy as usize][sx as usize] * 2
+                                + p_y_xm3_ym2[(sy + 1) as usize][sx as usize] * 2
+                                + p_y_xm3_ym2[sy as usize][(sx + 1) as usize]
+                                + p_y_xm3_ym2[(sy + 1) as usize][(sx + 1) as usize]
+                                + 4)
+                                >> 3;
+                        }
+                    }
+                }
+            }
+
+            if cnt_t + cnt_l == 2 {
+                (p_sel_ds_y[0], p_sel_ds_y[1], p_sel_ds_y[2], p_sel_ds_y[3]) =
+                    (p_sel_ds_y[1], p_sel_ds_y[3], p_sel_ds_y[1], p_sel_ds_y[0]);
+                (p_sel_c[0], p_sel_c[1], p_sel_c[2], p_sel_c[3]) =
+                    (p_sel_c[1], p_sel_c[3], p_sel_c[1], p_sel_c[0]);
+            }
+            let mut min_grp_idx = [0, 2];
+            let mut max_grp_idx = [1, 3];
+            if p_sel_ds_y[min_grp_idx[0]] > p_sel_ds_y[min_grp_idx[1]] {
+                (min_grp_idx[0], min_grp_idx[1]) = (min_grp_idx[1], min_grp_idx[0]);
+            }
+            if p_sel_ds_y[max_grp_idx[0]] > p_sel_ds_y[max_grp_idx[1]] {
+                (max_grp_idx[0], max_grp_idx[1]) = (max_grp_idx[1], max_grp_idx[0]);
+            }
+            if p_sel_ds_y[min_grp_idx[0]] > p_sel_ds_y[max_grp_idx[1]] {
+                (min_grp_idx, max_grp_idx) = (max_grp_idx, min_grp_idx);
+            }
+            if p_sel_ds_y[min_grp_idx[1]] > p_sel_ds_y[max_grp_idx[0]] {
+                (min_grp_idx[1], max_grp_idx[0]) = (max_grp_idx[0], min_grp_idx[1]);
+            }
+            let max_y = (p_sel_ds_y[max_grp_idx[0]] + p_sel_ds_y[max_grp_idx[1]] + 1) >> 1;
+            let max_c = (p_sel_c[max_grp_idx[0]] + p_sel_c[max_grp_idx[1]] + 1) >> 1;
+            let min_y = (p_sel_ds_y[min_grp_idx[0]] + p_sel_ds_y[min_grp_idx[1]] + 1) >> 1;
+            let min_c = (p_sel_c[min_grp_idx[0]] + p_sel_c[min_grp_idx[1]] + 1) >> 1;
+
+            let diff = max_y - min_y;
+            let (a, k, b) = if diff != 0 {
+                let diff_c = max_c - min_c;
+                let mut x = diff.ilog2() as usize;
+                let norm_diff = ((diff << 4) >> x) & 15;
+                x += (norm_diff != 0) as usize;
+                let y = if diff_c.abs() > 0 {
+                    diff_c.abs().ilog2() as usize + 1
+                } else {
+                    0
+                };
+                let div_sig_table = [0, 7, 6, 5, 5, 4, 4, 3, 3, 2, 2, 1, 1, 1, 1, 0];
+                let mut a =
+                    (diff_c * (div_sig_table[norm_diff as usize] | 8) + (1 << (y - 1))) >> y;
+                let k = if 3 + x - y < 1 { 1 } else { 3 + x - y };
+                a = if 3 + x - y < 1 {
+                    if a < 0 {
+                        -15
+                    } else if a > 0 {
+                        15
+                    } else {
+                        0
+                    }
+                } else {
+                    a
+                };
+                let b = min_c - ((a * min_y) >> k);
+                (a, k, b)
+            } else {
+                (0, 0, min_c)
+            };
+            for y in 0..th {
+                for x in 0..tw {
+                    tile_pred_pixels[ty + y][tx + x] = (((p_ds_y[y][x]*a)>>k)+b).clamp(0, 255) as u8;
+                }
+            }
+        }
+    }
 }
