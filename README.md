@@ -24,7 +24,7 @@ The latest evaluation dashboard can be found [here](https://hjmkt.github.io/rwc)
 |       Slice type       |                I only                 |           -            |
 |     Chroma format      |             YCbCr420 only             |           -            |
 |      Color depth       |              8-bit only               |           -            |
-|    Intra prediction    |  PLANAR or DC or ANGULAR2~ANGULAR66   |           -            |
+|    Intra prediction    |  PLANAR or DC or ANGULARX or CCLMX    |           -            |
 |     Transform skip     |                 Yes\*                 | Not elaborately tested |
 |     Transform size     | 64x64 or 32x32 or 16x16 or 8x8 or 4x4 |           -            |
 |         LFNST          |                  No                   |           -            |
@@ -89,11 +89,7 @@ pipenv install
 # otherwise
 pip install -r requirements.txt
 
-# single thread
-python evaluate.py
-
-# multi threads
-python evaluate_mp.py
+python evaluate_mp.py --threads NUM_OF_THREADS
 ```
 
 The following command will run the evaluation, update the dashboard and export it as docs/index.html.

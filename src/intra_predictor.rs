@@ -1590,7 +1590,7 @@ impl IntraPredictor {
         tu: &mut TransformUnit,
         c_idx: usize,
         tile_pred_pixels: &mut Vec2d<u8>,
-        tile_reconst_pixels: &Vec<Vec2d<u8>>,
+        tile_reconst_pixels: &[Vec2d<u8>],
         sps: &SequenceParameterSet,
         pps: &PictureParameterSet,
         ectx: &mut EncoderContext,

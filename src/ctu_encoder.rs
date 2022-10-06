@@ -1447,50 +1447,11 @@ impl<'a> CtuEncoder<'a> {
             let mut intra_predictor = IntraPredictor::new();
             let ectx = &self.encoder_context;
             let ectx = &mut ectx.lock().unwrap();
-            //if pred_mode_flag {
-            ////let mode = {
-            ////let cu = tu.get_cu();
-            ////let cu = cu.lock().unwrap();
-            ////cu.intra_pred_mode[0]
-            ////};
-            //let chroma_mode = {
-            //let cu = tu.get_cu();
-            //let cu = cu.lock().unwrap();
-            //cu.intra_pred_mode[1]
-            //};
-            //ectx.enable_print = false;
-            //for c_idx in 0..3 {
-            //if tu.is_component_active(c_idx) {
-            //if matches!(
-            //chroma_mode,
-            //IntraPredMode::LT_CCLM | IntraPredMode::T_CCLM | IntraPredMode::L_CCLM
-            //) && c_idx > 0
-            //{
-            //ectx.enable_print = true;
-            //}
-            //intra_predictor.predict(tu, c_idx, sh.sps, sh.pps, ectx);
-            //ectx.enable_print = false;
-            //}
-            //}
-            //ectx.enable_print = false;
-            //}
             let mut transformer = Transformer::new();
             let mut quantizer = Quantizer::new();
             for c_idx in 0..3 {
                 if tu.is_component_active(c_idx) {
                     if pred_mode_flag {
-                        //let chroma_mode = {
-                            //let cu = tu.get_cu();
-                            //let cu = cu.lock().unwrap();
-                            //cu.intra_pred_mode[1]
-                        //};
-                        //if matches!(
-                            //chroma_mode,
-                            //IntraPredMode::LT_CCLM | IntraPredMode::T_CCLM | IntraPredMode::L_CCLM
-                        //) && c_idx > 0
-                        //{
-                            //ectx.enable_print = true;
-                        //}
                         intra_predictor.predict(tu, c_idx, sh.sps, sh.pps, ectx);
                         ectx.enable_print = false;
                     }
@@ -1518,30 +1479,6 @@ impl<'a> CtuEncoder<'a> {
                 }
             }
 
-            // reconstruction
-            // FIXME SIMD?
-            //let tile = tu.get_tile();
-            //let tile = &mut tile.lock().unwrap();
-            //for c_idx in 0..3 {
-            //if tu.is_component_active(c_idx) {
-            //let (tx, ty) = tu.get_component_pos(c_idx);
-            //let (tw, th) = tu.get_component_size(c_idx);
-            //let pred_pixels = &tile.pred_pixels.borrow()[c_idx];
-            //let reconst_pixels = &mut tile.reconst_pixels.borrow_mut()[c_idx];
-            //for y in ty..ty + th {
-            //let pred_pixels = &pred_pixels[y];
-            //let reconst_pixels = &mut reconst_pixels[y];
-            //let it = &tu.itransformed_coeffs[c_idx][y - ty];
-            //for x in tx..tx + tw {
-            //let pred = pred_pixels[x];
-            //let res = it[x - tx];
-            //let rec = (pred as i16 + res).clamp(0, 255) as u8;
-            //reconst_pixels[x] = rec;
-            //}
-            //}
-            //}
-            //}
-            // FIXME
             ectx.qp_y = tu.qp;
         }
 
