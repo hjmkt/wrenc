@@ -94,7 +94,7 @@ def calculate_bd_rate(ex_params):
         env["height"] = str(height)
         env["frame_rate"] = str(frame_rate)
         env["extra_params"] = f"--extra-params {ex_params}"
-        env["preset"] = "superfast"
+        env["preset"] = "placebo"
 
         with ProcessPoolExecutor(8) as executor:
             results = executor.map(
@@ -132,7 +132,7 @@ def calculate_bd_rate(ex_params):
                         f"x264_{qp}.mp4",
                         env.copy(),
                     ),
-                    list(map(lambda qp: qp + 6, qps)),
+                    list(map(lambda qp: qp + 3, qps)),
                 ),
             )
             for (file_bytes, psnr) in results:
