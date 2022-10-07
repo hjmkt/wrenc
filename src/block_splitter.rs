@@ -100,47 +100,47 @@ impl BlockSplitter {
 
         let l0 = match ectx.extra_params.get("l0") {
             Some(l0) => l0.parse::<f32>().unwrap(),
-            _ => 2.501_264_8,
+            _ => 2.495_123_1,
         };
         let l1 = match ectx.extra_params.get("l1") {
             Some(l1) => l1.parse::<f32>().unwrap(),
-            _ => 1.388_110_8,
+            _ => 1.321_590_3,
         };
         let l2 = match ectx.extra_params.get("l2") {
             Some(l2) => l2.parse::<f32>().unwrap(),
-            _ => 0.662_599_44,
+            _ => 0.673_733_23,
         };
         let l3 = match ectx.extra_params.get("l3") {
             Some(l3) => l3.parse::<f32>().unwrap(),
-            _ => 2.657_025_3,
+            _ => 2.694_721_2,
         };
         let l4 = match ectx.extra_params.get("l4") {
             Some(l4) => l4.parse::<f32>().unwrap(),
-            _ => 0.589_925_17,
+            _ => 0.596_190_8,
         };
         let l5 = match ectx.extra_params.get("l5") {
             Some(l5) => l5.parse::<f32>().unwrap(),
-            _ => 1.761_433_4,
+            _ => 1.762_286_1,
         };
         let l6 = match ectx.extra_params.get("l6") {
             Some(l6) => l6.parse::<f32>().unwrap(),
-            _ => 0.699_952_8,
+            _ => 0.671_961_67,
         };
         let l7 = match ectx.extra_params.get("l7") {
             Some(l7) => l7.parse::<f32>().unwrap(),
-            _ => 0.921_078_7,
+            _ => 1.158_880_6,
         };
         let l8 = match ectx.extra_params.get("l8") {
             Some(l8) => l8.parse::<f32>().unwrap(),
-            _ => 7.791_263_6,
+            _ => 7.915_166,
         };
         let l9 = match ectx.extra_params.get("l9") {
             Some(l9) => l9.parse::<f32>().unwrap(),
-            _ => 1.940_536_7,
+            _ => 1.944_860_6,
         };
         let l10 = match ectx.extra_params.get("l10") {
             Some(l10) => l10.parse::<f32>().unwrap(),
-            _ => -0.112_409_44,
+            _ => 0.979_434_97,
         };
 
         let mode_bits = if non_planar_flag {
@@ -373,31 +373,31 @@ impl BlockSplitter {
 
         let p0 = match ectx.extra_params.get("p0") {
             Some(p0) => p0.parse::<f32>().unwrap(),
-            _ => 2.621_976_1,
+            _ => 2.668_370_7,
         };
         let p1 = match ectx.extra_params.get("p1") {
             Some(p1) => p1.parse::<f32>().unwrap(),
-            _ => 1.944_005_3,
+            _ => 1.922_151_4,
         };
         let p2 = match ectx.extra_params.get("p2") {
             Some(p2) => p2.parse::<f32>().unwrap(),
-            _ => 0.555_588_1,
+            _ => 0.559_554_4,
         };
         let p3 = match ectx.extra_params.get("p3") {
             Some(p3) => p3.parse::<f32>().unwrap(),
-            _ => 1.150_586_5,
+            _ => 1.180_406_8,
         };
         let p4 = match ectx.extra_params.get("p4") {
             Some(p4) => p4.parse::<f32>().unwrap(),
-            _ => 0.669_123_65,
+            _ => 0.747_049_75,
         };
         let p5 = match ectx.extra_params.get("p5") {
             Some(p5) => p5.parse::<f32>().unwrap(),
-            _ => 0.924_396_93,
+            _ => 1.029_335,
         };
         let p6 = match ectx.extra_params.get("p6") {
             Some(p6) => p6.parse::<f32>().unwrap(),
-            _ => 7.716_202,
+            _ => 7.775_918,
         };
 
         let mode_bits = if cclm_mode_flag {
