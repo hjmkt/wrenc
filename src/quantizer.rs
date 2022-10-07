@@ -431,12 +431,29 @@ impl Quantizer {
             tu.ls_cache[c_idx] = Some(ls.clone());
             ls
         };
-        for y in 0..th {
-            let t = &tu.transformed_coeffs[c_idx][y];
-            let q = &mut tu.quantized_transformed_coeffs[c_idx][y];
-            let l = &ls[y];
-            for x in 0..tw {
-                q[x] = ((((t[x] as i32) << bd_shift) - bd_offset) / l[x]) as i16;
+        if sh.dep_quant_used_flag {
+            for y in 0..th {
+                let t = &tu.transformed_coeffs[c_idx][y];
+                let q = &mut tu.quantized_transformed_coeffs[c_idx][y];
+                let l = &ls[y];
+                for x in 0..tw {
+                    q[x] = ((((t[x] as i32) << bd_shift) - bd_offset) / l[x]) as i16;
+                }
+            }
+        } else {
+            for y in 0..th {
+                let t = &tu.transformed_coeffs[c_idx][y];
+                let q = &mut tu.quantized_transformed_coeffs[c_idx][y];
+                let l = &ls[y];
+                for x in 0..tw {
+                    let tq = ((t[x] as i32) << bd_shift) - bd_offset;
+                    if tq >= 0 {
+                        q[x] = ((tq + l[x] / 2) / l[x]) as i16;
+                    } else {
+                        q[x] = (-((-tq + l[x] / 2) / l[x])) as i16;
+                    }
+                    //q[x] = ((((t[x] as i32) << bd_shift) - bd_offset) / l[x]) as i16;
+                }
             }
         }
         // TODO rd sensitive quantization

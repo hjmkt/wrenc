@@ -14,8 +14,8 @@
     "command": "x264_intra_fixed_qp.sh",
     "base": "qp",
     "parameters": {
-      "qp": [26, 29, 32, 35, 38, 41, 44, 47],
-      "preset": ["superfast"]
+      "qp": [23, 26, 29, 32, 35, 38, 41, 44],
+      "preset": ["placebo"]
     }
   }
 }
