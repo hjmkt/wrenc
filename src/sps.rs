@@ -317,7 +317,7 @@ impl SequenceParameterSet {
             isp_enabled_flag: false,
             mrl_enabled_flag: false,
             mip_enabled_flag: false,
-            cclm_enabled_flag: false,
+            cclm_enabled_flag: true,
             chroma_horizontal_collocated_flag: false,
             chroma_vertical_collocated_flag: false,
             palette_enabled_flag: false,

@@ -1226,8 +1226,6 @@ pub struct CodingUnit {
     pub intra_luma_mpm_remainer: usize,
     pub intra_bdpcm_chroma_flag: bool,
     pub intra_bdpcm_chroma_dir_flag: bool,
-    pub cclm_mode_flag: bool,
-    pub cclm_mode_idx: usize,
     pub intra_chroma_pred_mode: usize,
     pub general_merge_flag: bool,
     pub merge_data: Option<MergeData>,
@@ -1315,8 +1313,6 @@ impl CodingUnit {
             intra_luma_mpm_remainer: 0,
             intra_bdpcm_chroma_flag: false,
             intra_bdpcm_chroma_dir_flag: false,
-            cclm_mode_flag: false,
-            cclm_mode_idx: 0,
             intra_chroma_pred_mode: 4,
             general_merge_flag: false,
             merge_data: None,
@@ -1400,6 +1396,45 @@ impl CodingUnit {
         let tt = self.transform_tree.as_ref().unwrap();
         let tt = &mut tt.lock().unwrap();
         tt.set_cu_intra_pred_mode(intra_pred_mode);
+    }
+
+    pub fn is_cclm_enabled(&self, sh: &SliceHeader, ectx: &EncoderContext) -> bool {
+        // cross-component chroma intra prediction mode checking process (8.4.4)
+        if sh.sps.cclm_enabled_flag {
+            if !sh.sps.partition_constraints.qtbtt_dual_tree_intra_flag
+                || sh.slice_type != SliceType::I
+                || ectx.ctb_log2_size_y < 6
+            {
+                true
+            } else {
+                // FIXME
+                panic!();
+                #[allow(unreachable_code)]
+                false
+                // TODO
+                //let ct = self.parent.lock().unwrap();
+                //(self.width / 2 == 64 && self.height / 2 == 64)
+                //|| (ct.cqt_depth == ectx.ctb_log2_size_y - 6
+                //&& ct.split_mode == MttSplitMode::SPLIT_BT_HOR
+                //&& self.width / 2 == 64
+                //&& self.height / 2 == 32)
+                //|| (ct.cqt_depth > ectx.ctb_log2_size_y - 6)
+                //|| (ct.cqt_depth==ectx.ctb_log2_size_y-6 && ct.split_mode==MttSplitMode::SPLIT_BT_HOR&&ct.)
+            }
+        } else {
+            false
+        }
+    }
+
+    pub fn get_cclm_mode_flag(&self) -> bool {
+        matches!(
+            self.intra_pred_mode[1],
+            IntraPredMode::LT_CCLM | IntraPredMode::T_CCLM | IntraPredMode::L_CCLM
+        )
+    }
+
+    pub fn get_cclm_mode_idx(&self) -> usize {
+        self.intra_pred_mode[1] as usize - IntraPredMode::LT_CCLM as usize
     }
 
     pub fn is_below_left_available(&self) -> bool {
@@ -1648,8 +1683,8 @@ impl CodingUnit {
                 }
             } else {
                 // Table 20
-                let pred_mode_idx = if self.cclm_mode_flag {
-                    match self.cclm_mode_idx {
+                let pred_mode_idx = if self.get_cclm_mode_flag() {
+                    match self.get_cclm_mode_idx() {
                         0 => match intra_luma_pred_mode as usize {
                             0 => 81,
                             50 => 81,

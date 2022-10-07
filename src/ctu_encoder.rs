@@ -490,8 +490,6 @@ impl<'a> CtuEncoder<'a> {
             intra_subpartitions_mode_flag,
             intra_subpartitions_split_flag,
             intra_luma_not_planar_flag,
-            cclm_mode_flag,
-            cclm_mode_idx,
             intra_chroma_pred_mode,
             general_merge_flag,
             mvd_coding,
@@ -540,8 +538,6 @@ impl<'a> CtuEncoder<'a> {
                 cu.intra_subpartitions_mode_flag,
                 cu.intra_subpartitions_split_flag,
                 cu.get_intra_luma_not_planar_flag(),
-                cu.cclm_mode_flag,
-                cu.cclm_mode_idx,
                 cu.intra_chroma_pred_mode,
                 cu.general_merge_flag,
                 cu.mvd_coding.clone(),
@@ -863,22 +859,22 @@ impl<'a> CtuEncoder<'a> {
                                 &mut ectx,
                             );
                         } else {
-                            if ectx.cclm_enabled {
+                            if cu.is_cclm_enabled(sh, &ectx) {
                                 debug_eprintln!("cu cclm_mode_flag ");
                                 self.coder.encode_cabac_cu(
                                     bins,
-                                    cclm_mode_flag as usize,
+                                    cu.get_cclm_mode_flag() as usize,
                                     CabacContext::CclmModeFlag,
                                     cu,
                                     sh,
                                     &mut ectx,
                                 );
                             }
-                            if cclm_mode_flag {
+                            if cu.get_cclm_mode_flag() {
                                 debug_eprintln!("cu cclm_mode_idx ");
                                 self.coder.encode_cabac_cu(
                                     bins,
-                                    cclm_mode_idx as usize,
+                                    cu.get_cclm_mode_idx(),
                                     CabacContext::CclmModeIdx,
                                     cu,
                                     sh,
@@ -1451,40 +1447,20 @@ impl<'a> CtuEncoder<'a> {
             let mut intra_predictor = IntraPredictor::new();
             let ectx = &self.encoder_context;
             let ectx = &mut ectx.lock().unwrap();
-            if pred_mode_flag {
-                let mode = {
-                    let cu = tu.get_cu();
-                    let cu = cu.lock().unwrap();
-                    cu.intra_pred_mode[0]
-                };
-                ectx.enable_print = false;
-                if mode == IntraPredMode::ANGULAR42 {
-                    ectx.enable_print = false;
-                }
-                for c_idx in 0..3 {
-                    if tu.is_component_active(c_idx) {
-                        intra_predictor.predict(tu, c_idx, sh.sps, sh.pps, ectx);
-                    }
-                }
-                ectx.enable_print = false;
-            }
             let mut transformer = Transformer::new();
             let mut quantizer = Quantizer::new();
             for c_idx in 0..3 {
                 if tu.is_component_active(c_idx) {
+                    if pred_mode_flag {
+                        intra_predictor.predict(tu, c_idx, sh.sps, sh.pps, ectx);
+                        ectx.enable_print = false;
+                    }
                     transformer.transform(tu, c_idx, sh.sps, sh.ph.as_ref().unwrap(), ectx);
                     quantizer.quantize(tu, c_idx, sh, ectx);
                     quantizer.dequantize(tu, c_idx, sh, ectx);
                     transformer.inverse_transform(tu, c_idx, sh.sps, sh.ph.as_ref().unwrap(), ectx);
-                }
-            }
-
-            // reconstruction
-            // FIXME SIMD?
-            let tile = tu.get_tile();
-            let tile = &mut tile.lock().unwrap();
-            for c_idx in 0..3 {
-                if tu.is_component_active(c_idx) {
+                    let tile = tu.get_tile();
+                    let tile = &mut tile.lock().unwrap();
                     let (tx, ty) = tu.get_component_pos(c_idx);
                     let (tw, th) = tu.get_component_size(c_idx);
                     let pred_pixels = &tile.pred_pixels.borrow()[c_idx];
@@ -1502,7 +1478,7 @@ impl<'a> CtuEncoder<'a> {
                     }
                 }
             }
-            // FIXME
+
             ectx.qp_y = tu.qp;
         }
 
