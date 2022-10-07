@@ -1598,7 +1598,10 @@ impl IntraPredictor {
         let (tw, th) = tu.get_component_size(c_idx);
         let (tx, ty) = tu.get_component_pos(c_idx);
         if ectx.enable_print {
-            println!("pred cclm {}x{} @ ({},{})", tw, th, tx, ty);
+            println!(
+                "pred cclm {}x{} @ ({},{}) c_idx={} {:?}",
+                tw, th, tx, ty, c_idx, tu.cu_intra_pred_mode
+            );
         }
         //ectx.enable_print = false;
         let avail_l = ectx.derive_neighbouring_block_availability(
@@ -1989,7 +1992,11 @@ impl IntraPredictor {
                 } else {
                     (diff_c * (div_sig_table[norm_diff as usize] | 8) + (1 << (y - 1))) >> y
                 };
-                let k = if 3 + x - y < 1 { 1 } else { 3 + x - y };
+                let k = if (3 + x as isize - y as isize) < 1 {
+                    1usize
+                } else {
+                    3 + x - y
+                };
                 a = if 3 + x - y < 1 {
                     if a < 0 {
                         -15
@@ -2006,7 +2013,9 @@ impl IntraPredictor {
             } else {
                 (0, 0, min_c)
             };
-            //println!("a={a}, k={k}, b={b}");
+            if ectx.enable_print {
+                println!("a={a}, k={k}, b={b}");
+            }
             for y in 0..th {
                 for x in 0..tw {
                     tile_pred_pixels[ty + y][tx + x] =
