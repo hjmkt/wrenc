@@ -9,6 +9,7 @@ from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from scipy import interpolate
 from concurrent.futures import ProcessPoolExecutor
+from statistics import mean
 
 commit_id = subprocess.check_output("git rev-parse --short HEAD".split()).strip().decode("utf-8")
 commit_message = (
@@ -215,6 +216,16 @@ def evaluate(threads):
                 s += f(p) / base_bd_psnrs[i]
             s /= n
             bd_psnr[video][tag] = s
+    bd_psnr_summary = {}
+    for video_result in bd_psnr.values():
+        for tag, psnr in video_result.items():
+            if tag not in bd_psnr_summary.keys():
+                bd_psnr_summary[tag] = [psnr]
+            else:
+                bd_psnr_summary[tag].append(psnr)
+    for tag, psnrs in bd_psnr_summary.items():
+        bd_psnr_summary[tag] = mean(psnrs)
+    bd_psnr["summary"] = bd_psnr_summary
     pprint.pprint(bd_psnr)
 
     with open("summary.json", "w") as f:

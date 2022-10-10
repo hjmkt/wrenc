@@ -47,21 +47,6 @@ impl BoolCoder {
         }
     }
 
-    //#[inline(always)]
-    //pub fn push_bin(&self, out_bins: &mut Bins, bin: bool) {
-    //out_bins.push_bin(bin);
-    //}
-
-    //#[inline(always)]
-    //pub fn push_bins_with_size(&self, out_bins: &mut Bins, bins: u64, size: usize) {
-    //out_bins.push_bins_with_size(bins, size);
-    //}
-
-    //#[inline(always)]
-    //pub fn byte_align(&self, out_bins: &mut Bins) {
-    //out_bins.byte_align();
-    //}
-
     #[inline(always)]
     fn msb_u64(v: u64) -> u64 {
         let mut msb = 0;
@@ -753,19 +738,6 @@ impl BoolCoder {
         self.encode_trancated_rice(out_bins, val, c_max, c_rice_param)
     }
 
-    //pub fn binarize_cabac_residual(&mut self, out_bins: &mut Bins, val: usize, ctx: CabacContext) {
-    //let bin_process = &ctx_to_bin_process[ctx as usize];
-    //match bin_process {
-    //BinProcess::FL(c_max) => self.encode_fixed_length(out_bins, val, *c_max),
-    //BinProcess::TB(c_max) => self.encode_trancated_binary(out_bins, val, *c_max),
-    //BinProcess::TR(c_max, c_rice_param) => {
-    //self.encode_trancated_rice(out_bins, val, *c_max, *c_rice_param)
-    //}
-    //BinProcess::EG(k) => self.encode_kth_order_exp_golomb(out_bins, val, *k),
-    //_ => panic!(),
-    //}
-    //}
-
     #[inline(always)]
     pub fn binarize_cabac_end_one_bit(&self, out_bins: &mut Bins) {
         self.encode_fixed_length(out_bins, 1, 1);
@@ -873,29 +845,6 @@ impl BoolCoder {
             self.encode_arithmetic(out_bins, bin, ctx, ctx_idx, bypass_flag, init_type);
         }
     }
-
-    //#[inline(always)]
-    //pub fn encode_cabac_residual(
-    //&mut self,
-    //out_bins: &mut Bins,
-    //val: usize,
-    //ctx: CabacContext,
-    //tu: &TransformUnit,
-    //c_idx: usize,
-    //sh: &SliceHeader,
-    //) {
-    //let init_type = Self::get_init_type(sh);
-    //let mut bins = Bins::new();
-    //self.binarize_cabac_residual(&mut bins, val, ctx);
-    //let mut bin_idx = 0;
-    //for bin in bins.into_iter() {
-    //debug_eprintln!("ecbin {:?}", bin);
-    //let (ctx_idx, bypass_flag) =
-    //self.derive_context_and_bypass_flag_residual(bin_idx, c_idx, ctx, tu, sh);
-    //self.encode_arithmetic(out_bins, bin, ctx, ctx_idx, bypass_flag, init_type);
-    //bin_idx += 1;
-    //}
-    //}
 
     #[inline(always)]
     pub fn encode_cabac_last_sig_coeff_x_prefix(
@@ -1031,21 +980,6 @@ impl BoolCoder {
         }
     }
 
-    //#[inline(always)]
-    //pub fn binarize_cabac_for_last_sig_coeff_x_suffix(
-    //&mut self,
-    //out_bins: &mut Bins,
-    //val: usize,
-    //last_sig_coeff_x_prefix: usize,
-    //ectx: &mut EncoderContext,
-    //) {
-    //let c_max = (1 << ((last_sig_coeff_x_prefix >> 1) - 1)) - 1;
-    //self.encode_fixed_length(out_bins, val, c_max)
-    //}
-
-    //#[inline(always)]
-    //pub fn binarize_cabac_for_last_sig_coeff_y_suffix(
-
     pub fn _encode_cabac_for_palette_idx_idc(
         &mut self,
         out_bins: &mut Bins,
@@ -1110,7 +1044,6 @@ impl BoolCoder {
     }
 
     pub fn encode_cabac_end_one_bit(&mut self, out_bins: &mut Bins) {
-        //debug_eprintln!("ec {}", ctx as usize);
         let mut bins = Bins::new();
         self.binarize_cabac_end_one_bit(&mut bins);
         for bin in bins.into_iter() {
@@ -1233,7 +1166,7 @@ impl BoolCoder {
             }
         }
         loc_sum_abs = (loc_sum_abs as isize - base_level as isize * 5).clamp(0, 31) as usize;
-        let c_rice_param = c_rice_params[loc_sum_abs as usize];
+        let c_rice_param = c_rice_params[loc_sum_abs];
         if base_level == 0 {
             ectx.zero_pos[n] = (if ectx.q_state < 2 { 1 } else { 2 }) << c_rice_param;
         }

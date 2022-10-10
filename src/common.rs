@@ -293,7 +293,7 @@ impl<T: Copy> Vec2d<T> {
     }
 }
 
-impl<T: Integer> Index<usize> for Vec2d<T> {
+impl<T> Index<usize> for Vec2d<T> {
     type Output = [T];
     #[inline(always)]
     fn index(&self, index: usize) -> &Self::Output {
@@ -302,7 +302,7 @@ impl<T: Integer> Index<usize> for Vec2d<T> {
     }
 }
 
-impl<T: Integer> IndexMut<usize> for Vec2d<T> {
+impl<T> IndexMut<usize> for Vec2d<T> {
     #[inline(always)]
     fn index_mut(&mut self, index: usize) -> &mut [T] {
         let offset = index << self.log2_stride;
@@ -379,17 +379,6 @@ pub fn sum_256_epi32(v: __m256i) -> i32 {
     }
 }
 
-//pub fn sum_8xN_i32(v: &[i32]) -> i32 {
-//unsafe {
-//let mut h = _mm256_lddqu_si256(v.as_ptr() as *const _);
-//for s in (8..v.len()).step_by(8) {
-//let t = _mm256_lddqu_si256(v[s..].as_ptr() as *const _);
-//h = _mm256_add_epi32(h, t);
-//}
-//sum_256_epi32(h)
-//}
-//}
-
 #[inline(always)]
 pub fn msum_8_i16_le_i9(v0: &[i16], v1: &[i16]) -> i32 {
     unsafe {
@@ -399,25 +388,6 @@ pub fn msum_8_i16_le_i9(v0: &[i16], v1: &[i16]) -> i32 {
         sum_128_epi32(v)
     }
 }
-
-//pub fn msum_16xN_i16(v0: &[i16], v1: &[i16]) -> i32 {
-//unsafe {
-//let mut h = {
-//let h0 = _mm256_lddqu_si256(v0.as_ptr() as *const _);
-//let h1 = _mm256_lddqu_si256(v1.as_ptr() as *const _);
-//_mm256_madd_epi16(h0, h1)
-//};
-//for s in (16..v0.len()).step_by(16) {
-//let t = {
-//let t0 = _mm256_lddqu_si256(v0[s..].as_ptr() as *const _);
-//let t1 = _mm256_lddqu_si256(v1[s..].as_ptr() as *const _);
-//_mm256_madd_epi16(t0, t1)
-//};
-//h = _mm256_add_epi32(h, t);
-//}
-//sum_256_epi32(h)
-//}
-//}
 
 #[inline(always)]
 pub fn msum_16x1_i16_le_i9(v0: &[i16], v1: &[i16]) -> i32 {
@@ -700,7 +670,7 @@ mod tests {
         v0.iter_mut().for_each(|x| *x %= 0b111111111);
         v1.iter_mut().for_each(|x| *x %= 0b11111111111111111);
         let dut = msum_8x1_i16_i32_le_i9_i17(&v0[..], &v1[..]);
-        let gt = (0..8).map(|i| v0[i] as i32 * v1[i] as i32).sum();
+        let gt = (0..8).map(|i| v0[i] as i32 * v1[i]).sum();
         assert_eq!(dut, gt);
     }
 
@@ -715,7 +685,7 @@ mod tests {
         v0.iter_mut().for_each(|x| *x %= 0b111111111);
         v1.iter_mut().for_each(|x| *x %= 0b11111111111111111);
         let dut = msum_8x2_i16_i32_le_i9_i17(&v0[..], &v1[..]);
-        let gt = (0..16).map(|i| v0[i] as i32 * v1[i] as i32).sum();
+        let gt = (0..16).map(|i| v0[i] as i32 * v1[i]).sum();
         assert_eq!(dut, gt);
     }
 
@@ -730,7 +700,7 @@ mod tests {
         v0.iter_mut().for_each(|x| *x %= 0b111111111);
         v1.iter_mut().for_each(|x| *x %= 0b11111111111111111);
         let dut = msum_8x4_i16_i32_le_i9_i17(&v0[..], &v1[..]);
-        let gt = (0..32).map(|i| v0[i] as i32 * v1[i] as i32).sum();
+        let gt = (0..32).map(|i| v0[i] as i32 * v1[i]).sum();
         assert_eq!(dut, gt);
     }
 
@@ -745,7 +715,7 @@ mod tests {
         v0.iter_mut().for_each(|x| *x %= 0b111111111);
         v1.iter_mut().for_each(|x| *x %= 0b11111111111111111);
         let dut = msum_8x8_i16_i32_le_i9_i17(&v0[..], &v1[..]);
-        let gt = (0..64).map(|i| v0[i] as i32 * v1[i] as i32).sum();
+        let gt = (0..64).map(|i| v0[i] as i32 * v1[i]).sum();
         assert_eq!(dut, gt);
     }
 }
