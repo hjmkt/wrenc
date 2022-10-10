@@ -7,11 +7,46 @@ use super::transformer::*;
 
 const LEVEL_SCALE: [[i32; 6]; 2] = [[40, 45, 51, 57, 64, 72], [57, 64, 72, 80, 90, 102]];
 
-pub struct Quantizer {}
+pub struct Quantizer {
+    pub dq_table: Vec<Vec<f32>>,
+}
 
 impl Quantizer {
-    pub fn new() -> Quantizer {
-        Quantizer {}
+    pub fn new(ectx: &EncoderContext) -> Quantizer {
+        let q0 = match ectx.extra_params.get("q0") {
+            Some(q0) => q0.parse::<f32>().unwrap(),
+            _ => 5.479_013_4,
+        };
+        let q1 = match ectx.extra_params.get("q1") {
+            Some(q1) => q1.parse::<f32>().unwrap(),
+            _ => 1.120_687_8,
+        };
+        let q2 = match ectx.extra_params.get("q2") {
+            Some(q2) => q2.parse::<f32>().unwrap(),
+            _ => 2.531_597_4,
+        };
+        let delta = q2;
+        let mut dq_table = vec![];
+        for qp in 0..64 {
+            let lambda = (2.0f32).powf(qp as f32 / q0) * q1;
+            let mut table = vec![];
+            for a in 0..100 {
+                let t = lambda * (a as f32 + delta).log2();
+                table.push(t);
+            }
+            dq_table.push(table);
+        }
+        Quantizer { dq_table }
+    }
+
+    #[inline(always)]
+    pub fn get_dq_cost(&self, qp: usize, a: usize, lambda: f32, delta: f32) -> f32 {
+        let table = &self.dq_table[qp];
+        if a < table.len() {
+            table[a]
+        } else {
+            lambda * (a as f32 + delta).log2()
+        }
     }
 
     pub fn get_scaling_matrix_id(pred_mode: ModeType, c_idx: usize, max_tb_size: usize) -> usize {
@@ -163,11 +198,11 @@ impl Quantizer {
                 } else {
                     (qp_y_a + qp_y_b + 1) >> 1
                 };
-                let qp_y = (qp_y_pred as isize + cu_qp_delta as isize + 64 + 2 * ectx.qp_bd_offset)
+                let qp_y = (qp_y_pred as isize + cu_qp_delta + 64 + 2 * ectx.qp_bd_offset)
                     % (64 + ectx.qp_bd_offset)
                     - ectx.qp_bd_offset;
                 //debug_eprintln!("delta={}, qp_y={}", cu_qp_delta, qp_y);
-                qp_y + ectx.qp_bd_offset as isize
+                qp_y + ectx.qp_bd_offset
             } else {
                 0
             };
@@ -318,6 +353,561 @@ impl Quantizer {
         }
     }
 
+    pub fn search_dq(
+        &self,
+        t: &Vec2d<i16>,
+        log2_sb_w: usize,
+        log2_sb_h: usize,
+        num_sb_coeff: usize,
+        q_state: usize,
+        sb_order: &Vec<(usize, usize)>,
+        coeff_order: &Vec<(usize, usize)>,
+        last_scan_pos: usize,
+        last_sub_block: usize,
+        ls: &Vec2d<i32>,
+        bd_shift: usize,
+        bd_offset: i32,
+        depth: usize,
+        qp: usize,
+        lambda: f32,
+        delta: f32,
+        is_trailing_zeros: bool,
+        trellis_table: &mut Vec2d<[(usize, i16, f32); 4]>,
+        ectx: &EncoderContext,
+    ) -> (usize, i16, f32) {
+        if trellis_table[last_sub_block][last_scan_pos][q_state].2 != f32::MIN {
+            return trellis_table[last_sub_block][last_scan_pos][q_state];
+        }
+        let (x_s, y_s) = sb_order[last_sub_block];
+        let (x_0, y_0) = (x_s << log2_sb_w, y_s << log2_sb_h);
+        let x_c = x_0 + coeff_order[last_scan_pos].0;
+        let y_c = y_0 + coeff_order[last_scan_pos].1;
+        let table = &self.dq_table[qp];
+        let (a, q, cost) = if depth == 0 || (last_scan_pos == 0 && last_sub_block == 0) {
+            if t[y_c][x_c] == 0 {
+                let cost = if is_trailing_zeros {
+                    0.0
+                } else {
+                    self.get_dq_cost(qp, 0, lambda, delta)
+                };
+                (0, 0, cost)
+            } else if q_state > 1 {
+                if t[y_c][x_c] > 0 {
+                    let s = ((t[y_c][x_c] as i32) << bd_shift) - bd_offset;
+                    if s * 2 < ls[y_c][x_c] {
+                        let d = t[y_c][x_c].abs() as f32;
+                        let cost = if is_trailing_zeros {
+                            d
+                        } else {
+                            d + self.get_dq_cost(qp, 0, lambda, delta)
+                        };
+                        (0, 0, cost)
+                    } else {
+                        let a = 1 + (s / ls[y_c][x_c] / 2) as usize;
+                        let q = (2 * a - 1) as i16;
+                        let dq = (q as i32 * ls[y_c][x_c] + bd_offset) >> bd_shift;
+                        let d = (t[y_c][x_c] as i32 - dq).abs() as f32;
+                        let cost = d + self.get_dq_cost(qp, a, lambda, delta);
+                        (a, q, cost)
+                    }
+                } else {
+                    let s = ((t[y_c][x_c] as i32) << bd_shift) - bd_offset;
+                    let s = -s;
+                    if s * 2 < ls[y_c][x_c] {
+                        let d = t[y_c][x_c].abs() as f32;
+                        let cost = if is_trailing_zeros {
+                            d
+                        } else {
+                            d + self.get_dq_cost(qp, 0, lambda, delta)
+                        };
+                        (0, 0, cost)
+                    } else {
+                        let a = 1 + (s / ls[y_c][x_c] / 2) as usize;
+                        let q = -((2 * a - 1) as i16);
+                        let dq = (q as i32 * ls[y_c][x_c] + bd_offset) >> bd_shift;
+                        let d = (t[y_c][x_c] as i32 - dq).abs() as f32;
+                        let cost = d + self.get_dq_cost(qp, a, lambda, delta);
+                        (a, q, cost)
+                    }
+                }
+            } else if t[y_c][x_c] > 0 {
+                let s = ((t[y_c][x_c] as i32) << bd_shift) - bd_offset;
+                let a0 = (s / ls[y_c][x_c] / 2) as usize;
+                let q0 = (2 * a0) as i16;
+                let dq0 = (q0 as i32 * ls[y_c][x_c] + bd_offset) >> bd_shift;
+                let d0 = (t[y_c][x_c] as i32 - dq0).abs() as f32;
+                let cost0 = if a0 == 0 && is_trailing_zeros {
+                    d0
+                } else {
+                    d0 + self.get_dq_cost(qp, a0, lambda, delta)
+                };
+                let a1 = 1 + (s / ls[y_c][x_c] / 2) as usize;
+                let q1 = (2 * a1) as i16;
+                let dq1 = (q1 as i32 * ls[y_c][x_c] + bd_offset) >> bd_shift;
+                let d1 = (t[y_c][x_c] as i32 - dq1).abs() as f32;
+                let cost1 = d1 + self.get_dq_cost(qp, a1, lambda, delta);
+                if cost0 <= cost1 {
+                    (a0, q0, cost0)
+                } else {
+                    (a1, q1, cost1)
+                }
+            } else {
+                let s = ((t[y_c][x_c] as i32) << bd_shift) - bd_offset;
+                let s = -s;
+                let a0 = (s / ls[y_c][x_c] / 2) as usize;
+                let q0 = -(2 * a0 as isize) as i16;
+                let dq0 = (q0 as i32 * ls[y_c][x_c] + bd_offset) >> bd_shift;
+                let d0 = (t[y_c][x_c] as i32 - dq0).abs() as f32;
+                let cost0 = if a0 == 0 && is_trailing_zeros {
+                    d0
+                } else {
+                    d0 + self.get_dq_cost(qp, a0, lambda, delta)
+                };
+                let a1 = 1 + (s / ls[y_c][x_c] / 2) as usize;
+                let q1 = -(2 * a1 as isize) as i16;
+                let dq1 = (q1 as i32 * ls[y_c][x_c] + bd_offset) >> bd_shift;
+                let d1 = (t[y_c][x_c] as i32 - dq1).abs() as f32;
+                let cost1 = d1 + self.get_dq_cost(qp, a1, lambda, delta);
+                if cost0 <= cost1 {
+                    (a0, q0, cost0)
+                } else {
+                    (a1, q1, cost1)
+                }
+            }
+        } else {
+            let (next_scan_pos, next_sub_block) = if last_scan_pos == 0 {
+                (num_sb_coeff - 1, last_sub_block - 1)
+            } else {
+                (last_scan_pos - 1, last_sub_block)
+            };
+            if t[y_c][x_c] == 0 {
+                let nq_state = ectx.q_state_trans_table[q_state][0];
+                let (_, _, cost) = self.search_dq(
+                    t,
+                    log2_sb_w,
+                    log2_sb_h,
+                    num_sb_coeff,
+                    nq_state,
+                    sb_order,
+                    coeff_order,
+                    next_scan_pos,
+                    next_sub_block,
+                    ls,
+                    bd_shift,
+                    bd_offset,
+                    depth - 1,
+                    qp,
+                    lambda,
+                    delta,
+                    is_trailing_zeros,
+                    trellis_table,
+                    ectx,
+                );
+                let cost = cost + table[0];
+                (0, 0, 0.0 + cost)
+            } else if q_state > 1 {
+                if t[y_c][x_c] > 0 {
+                    let s = ((t[y_c][x_c] as i32) << bd_shift) - bd_offset;
+                    if s < ls[y_c][x_c] {
+                        let nq_state0 = ectx.q_state_trans_table[q_state][0];
+                        let a0 = 0;
+                        let q0 = 0;
+                        let dq0 = (q0 * ls[y_c][x_c] + bd_offset) >> bd_shift;
+                        let d0 = (t[y_c][x_c] as i32 - dq0).abs() as f32;
+                        let cost0 = if is_trailing_zeros {
+                            d0
+                        } else {
+                            d0 + self.get_dq_cost(qp, a0, lambda, delta)
+                        };
+                        let (_, _, ncost0) = self.search_dq(
+                            t,
+                            log2_sb_w,
+                            log2_sb_h,
+                            num_sb_coeff,
+                            nq_state0,
+                            sb_order,
+                            coeff_order,
+                            next_scan_pos,
+                            next_sub_block,
+                            ls,
+                            bd_shift,
+                            bd_offset,
+                            depth - 1,
+                            qp,
+                            lambda,
+                            delta,
+                            is_trailing_zeros,
+                            trellis_table,
+                            ectx,
+                        );
+                        let nq_state1 = ectx.q_state_trans_table[q_state][1];
+                        let a1 = 1;
+                        let q1 = 2 * a1 - 1;
+                        let dq1 = (q1 as i32 * ls[y_c][x_c] + bd_offset) >> bd_shift;
+                        let d1 = (t[y_c][x_c] as i32 - dq1).abs() as f32;
+                        let cost1 = d1 + self.get_dq_cost(qp, a1, lambda, delta);
+                        let (_, _, ncost1) = self.search_dq(
+                            t,
+                            log2_sb_w,
+                            log2_sb_h,
+                            num_sb_coeff,
+                            nq_state1,
+                            sb_order,
+                            coeff_order,
+                            next_scan_pos,
+                            next_sub_block,
+                            ls,
+                            bd_shift,
+                            bd_offset,
+                            depth - 1,
+                            qp,
+                            lambda,
+                            delta,
+                            false,
+                            trellis_table,
+                            ectx,
+                        );
+                        if cost0 + ncost0 <= cost1 + ncost1 {
+                            (a0, q0 as i16, cost0 + ncost0)
+                        } else {
+                            (a1, q1 as i16, cost1 + ncost1)
+                        }
+                    } else {
+                        let a0 = ((s + ls[y_c][x_c]) / ls[y_c][x_c] / 2) as usize;
+                        let nq_state0 = ectx.q_state_trans_table[q_state][a0 & 1];
+                        let q0 = 2 * a0 - 1;
+                        let dq0 = (q0 as i32 * ls[y_c][x_c] + bd_offset) >> bd_shift;
+                        let d0 = (t[y_c][x_c] as i32 - dq0).abs() as f32;
+                        let cost0 = if a0 == 0 && is_trailing_zeros {
+                            d0
+                        } else {
+                            d0 + self.get_dq_cost(qp, a0, lambda, delta)
+                        };
+                        let (_, _, ncost0) = self.search_dq(
+                            t,
+                            log2_sb_w,
+                            log2_sb_h,
+                            num_sb_coeff,
+                            nq_state0,
+                            sb_order,
+                            coeff_order,
+                            next_scan_pos,
+                            next_sub_block,
+                            ls,
+                            bd_shift,
+                            bd_offset,
+                            depth - 1,
+                            qp,
+                            lambda,
+                            delta,
+                            is_trailing_zeros && a0 == 0,
+                            trellis_table,
+                            ectx,
+                        );
+                        let a1 = 1 + ((s + ls[y_c][x_c]) / ls[y_c][x_c] / 2) as usize;
+                        let nq_state1 = ectx.q_state_trans_table[q_state][a1 & 1];
+                        let q1 = 2 * a1 - 1;
+                        let dq1 = (q1 as i32 * ls[y_c][x_c] + bd_offset) >> bd_shift;
+                        let d1 = (t[y_c][x_c] as i32 - dq1).abs() as f32;
+                        let cost1 = d1 + self.get_dq_cost(qp, a1, lambda, delta);
+                        let (_, _, ncost1) = self.search_dq(
+                            t,
+                            log2_sb_w,
+                            log2_sb_h,
+                            num_sb_coeff,
+                            nq_state1,
+                            sb_order,
+                            coeff_order,
+                            next_scan_pos,
+                            next_sub_block,
+                            ls,
+                            bd_shift,
+                            bd_offset,
+                            depth - 1,
+                            qp,
+                            lambda,
+                            delta,
+                            false,
+                            trellis_table,
+                            ectx,
+                        );
+                        if cost0 + ncost0 <= cost1 + ncost1 {
+                            (a0, q0 as i16, cost0 + ncost0)
+                        } else {
+                            (a1, q1 as i16, cost1 + ncost1)
+                        }
+                    }
+                } else {
+                    let s = ((t[y_c][x_c] as i32) << bd_shift) - bd_offset;
+                    let s = -s;
+                    if s < ls[y_c][x_c] {
+                        let nq_state0 = ectx.q_state_trans_table[q_state][0];
+                        let a0 = 0;
+                        let q0 = 0;
+                        let dq0 = (q0 * ls[y_c][x_c] + bd_offset) >> bd_shift;
+                        let d0 = (t[y_c][x_c] as i32 - dq0).abs() as f32;
+                        let cost0 = if is_trailing_zeros {
+                            d0
+                        } else {
+                            d0 + self.get_dq_cost(qp, a0, lambda, delta)
+                        };
+                        let (_, _, ncost0) = self.search_dq(
+                            t,
+                            log2_sb_w,
+                            log2_sb_h,
+                            num_sb_coeff,
+                            nq_state0,
+                            sb_order,
+                            coeff_order,
+                            next_scan_pos,
+                            next_sub_block,
+                            ls,
+                            bd_shift,
+                            bd_offset,
+                            depth - 1,
+                            qp,
+                            lambda,
+                            delta,
+                            is_trailing_zeros,
+                            trellis_table,
+                            ectx,
+                        );
+                        let nq_state1 = ectx.q_state_trans_table[q_state][1];
+                        let a1 = 1;
+                        let q1 = -(2 * a1 as isize - 1);
+                        let dq1 = (q1 as i32 * ls[y_c][x_c] + bd_offset) >> bd_shift;
+                        let d1 = (t[y_c][x_c] as i32 - dq1).abs() as f32;
+                        let cost1 = d1 + self.get_dq_cost(qp, a1, lambda, delta);
+                        let (_, _, ncost1) = self.search_dq(
+                            t,
+                            log2_sb_w,
+                            log2_sb_h,
+                            num_sb_coeff,
+                            nq_state1,
+                            sb_order,
+                            coeff_order,
+                            next_scan_pos,
+                            next_sub_block,
+                            ls,
+                            bd_shift,
+                            bd_offset,
+                            depth - 1,
+                            qp,
+                            lambda,
+                            delta,
+                            false,
+                            trellis_table,
+                            ectx,
+                        );
+                        if cost0 + ncost0 <= cost1 + ncost1 {
+                            (a0, q0 as i16, cost0 + ncost0)
+                        } else {
+                            (a1, q1 as i16, cost1 + ncost1)
+                        }
+                    } else {
+                        let a0 = ((s + ls[y_c][x_c]) / ls[y_c][x_c] / 2) as usize;
+                        let nq_state0 = ectx.q_state_trans_table[q_state][a0 & 1];
+                        let q0 = -(2 * a0 as isize - 1);
+                        let dq0 = (q0 as i32 * ls[y_c][x_c] + bd_offset) >> bd_shift;
+                        let d0 = (t[y_c][x_c] as i32 - dq0).abs() as f32;
+                        let cost0 = if a0 == 0 && is_trailing_zeros {
+                            d0
+                        } else {
+                            d0 + self.get_dq_cost(qp, a0, lambda, delta)
+                        };
+                        let (_, _, ncost0) = self.search_dq(
+                            t,
+                            log2_sb_w,
+                            log2_sb_h,
+                            num_sb_coeff,
+                            nq_state0,
+                            sb_order,
+                            coeff_order,
+                            next_scan_pos,
+                            next_sub_block,
+                            ls,
+                            bd_shift,
+                            bd_offset,
+                            depth - 1,
+                            qp,
+                            lambda,
+                            delta,
+                            is_trailing_zeros && a0 == 0,
+                            trellis_table,
+                            ectx,
+                        );
+                        let a1 = 1 + ((s + ls[y_c][x_c]) / ls[y_c][x_c] / 2) as usize;
+                        let nq_state1 = ectx.q_state_trans_table[q_state][a1 & 1];
+                        let q1 = -(2 * a1 as isize - 1);
+                        let dq1 = (q1 as i32 * ls[y_c][x_c] + bd_offset) >> bd_shift;
+                        let d1 = (t[y_c][x_c] as i32 - dq1).abs() as f32;
+                        let cost1 = d1 + self.get_dq_cost(qp, a1, lambda, delta);
+                        let (_, _, ncost1) = self.search_dq(
+                            t,
+                            log2_sb_w,
+                            log2_sb_h,
+                            num_sb_coeff,
+                            nq_state1,
+                            sb_order,
+                            coeff_order,
+                            next_scan_pos,
+                            next_sub_block,
+                            ls,
+                            bd_shift,
+                            bd_offset,
+                            depth - 1,
+                            qp,
+                            lambda,
+                            delta,
+                            false,
+                            trellis_table,
+                            ectx,
+                        );
+                        if cost0 + ncost0 <= cost1 + ncost1 {
+                            (a0, q0 as i16, cost0 + ncost0)
+                        } else {
+                            (a1, q1 as i16, cost1 + ncost1)
+                        }
+                    }
+                }
+            } else {
+                let s = ((t[y_c][x_c] as i32) << bd_shift) - bd_offset;
+                if t[y_c][x_c] > 0 {
+                    let a0 = (s / ls[y_c][x_c] / 2) as usize;
+                    let nq_state0 = ectx.q_state_trans_table[q_state][a0 & 1];
+                    let q0 = 2 * a0;
+                    let dq0 = (q0 as i32 * ls[y_c][x_c] + bd_offset) >> bd_shift;
+                    let d0 = (t[y_c][x_c] as i32 - dq0).abs() as f32;
+                    let cost0 = if a0 == 0 && is_trailing_zeros {
+                        d0
+                    } else {
+                        d0 + self.get_dq_cost(qp, a0, lambda, delta)
+                    };
+                    let (_, _, ncost0) = self.search_dq(
+                        t,
+                        log2_sb_w,
+                        log2_sb_h,
+                        num_sb_coeff,
+                        nq_state0,
+                        sb_order,
+                        coeff_order,
+                        next_scan_pos,
+                        next_sub_block,
+                        ls,
+                        bd_shift,
+                        bd_offset,
+                        depth - 1,
+                        qp,
+                        lambda,
+                        delta,
+                        is_trailing_zeros && a0 == 0,
+                        trellis_table,
+                        ectx,
+                    );
+                    let a1 = 1 + (s / ls[y_c][x_c] / 2) as usize;
+                    let nq_state1 = ectx.q_state_trans_table[q_state][a1 & 1];
+                    let q1 = 2 * a1;
+                    let dq1 = (q1 as i32 * ls[y_c][x_c] + bd_offset) >> bd_shift;
+                    let d1 = (t[y_c][x_c] as i32 - dq1).abs() as f32;
+                    let cost1 = d1 + self.get_dq_cost(qp, a1, lambda, delta);
+                    let (_, _, ncost1) = self.search_dq(
+                        t,
+                        log2_sb_w,
+                        log2_sb_h,
+                        num_sb_coeff,
+                        nq_state1,
+                        sb_order,
+                        coeff_order,
+                        next_scan_pos,
+                        next_sub_block,
+                        ls,
+                        bd_shift,
+                        bd_offset,
+                        depth - 1,
+                        qp,
+                        lambda,
+                        delta,
+                        false,
+                        trellis_table,
+                        ectx,
+                    );
+                    if cost0 + ncost0 <= cost1 + ncost1 {
+                        (a0, q0 as i16, cost0 + ncost0)
+                    } else {
+                        (a1, q1 as i16, cost1 + ncost1)
+                    }
+                } else {
+                    let s = -s;
+                    let a0 = (s / ls[y_c][x_c] / 2) as usize;
+                    let nq_state0 = ectx.q_state_trans_table[q_state][a0 & 1];
+                    let q0 = -(2 * a0 as isize);
+                    let dq0 = (q0 as i32 * ls[y_c][x_c] + bd_offset) >> bd_shift;
+                    let d0 = (t[y_c][x_c] as i32 - dq0).abs() as f32;
+                    let cost0 = if a0 == 0 && is_trailing_zeros {
+                        d0
+                    } else {
+                        d0 + self.get_dq_cost(qp, a0, lambda, delta)
+                    };
+                    let (_, _, ncost0) = self.search_dq(
+                        t,
+                        log2_sb_w,
+                        log2_sb_h,
+                        num_sb_coeff,
+                        nq_state0,
+                        sb_order,
+                        coeff_order,
+                        next_scan_pos,
+                        next_sub_block,
+                        ls,
+                        bd_shift,
+                        bd_offset,
+                        depth - 1,
+                        qp,
+                        lambda,
+                        delta,
+                        is_trailing_zeros && a0 == 0,
+                        trellis_table,
+                        ectx,
+                    );
+                    let a1 = 1 + (s / ls[y_c][x_c] / 2) as usize;
+                    let nq_state1 = ectx.q_state_trans_table[q_state][a1 & 1];
+                    let q1 = -(2 * a1 as isize);
+                    let dq1 = (q1 as i32 * ls[y_c][x_c] + bd_offset) >> bd_shift;
+                    let d1 = (t[y_c][x_c] as i32 - dq1).abs() as f32;
+                    let cost1 = d1 + self.get_dq_cost(qp, a1, lambda, delta);
+                    let (_, _, ncost1) = self.search_dq(
+                        t,
+                        log2_sb_w,
+                        log2_sb_h,
+                        num_sb_coeff,
+                        nq_state1,
+                        sb_order,
+                        coeff_order,
+                        next_scan_pos,
+                        next_sub_block,
+                        ls,
+                        bd_shift,
+                        bd_offset,
+                        depth - 1,
+                        qp,
+                        lambda,
+                        delta,
+                        false,
+                        trellis_table,
+                        ectx,
+                    );
+                    if cost0 + ncost0 <= cost1 + ncost1 {
+                        (a0, q0 as i16, cost0 + ncost0)
+                    } else {
+                        (a1, q1 as i16, cost1 + ncost1)
+                    }
+                }
+            }
+        };
+        trellis_table[last_sub_block][last_scan_pos][q_state] = (a, q, cost);
+        (a, q, cost)
+    }
+
     pub fn quantize(
         &mut self,
         tu: &mut TransformUnit,
@@ -356,7 +946,7 @@ impl Quantizer {
             let rect_non_ts_flag = if !tu.transform_skip_flag[c_idx] {
                 qp = (qp as isize + qp_act_offset).clamp(0, 63 + ectx.qp_bd_offset) as usize;
                 let rect_non_ts_flag = (tu.log2_tb_width + tu.log2_tb_height) & 1;
-                bd_shift = ectx.bit_depth + rect_non_ts_flag as usize + (log2_tw + log2_th) / 2 - 5
+                bd_shift = ectx.bit_depth + rect_non_ts_flag + (log2_tw + log2_th) / 2 - 5
                     + sh.dep_quant_used_flag as usize;
                 rect_non_ts_flag
             } else {
@@ -416,14 +1006,14 @@ impl Quantizer {
             }
 
             let ls: Vec2d<i32> = if sh.dep_quant_used_flag && !tu.transform_skip_flag[c_idx] {
-                let scale = LEVEL_SCALE[rect_non_ts_flag as usize][(qp + 1) % 6];
+                let scale = LEVEL_SCALE[rect_non_ts_flag][(qp + 1) % 6];
                 let shift = (qp + 1) / 6;
                 let mut ls = vec2d![0i32; th; tw];
                 self.derive_ls(tu, c_idx, &mut ls, &m, scale, shift);
                 ls
             } else {
                 let mut ls = vec2d![0i32; th; tw];
-                let scale = LEVEL_SCALE[rect_non_ts_flag as usize][qp % 6];
+                let scale = LEVEL_SCALE[rect_non_ts_flag][qp % 6];
                 let shift = qp / 6;
                 self.derive_ls(tu, c_idx, &mut ls, &m, scale, shift);
                 ls
@@ -432,14 +1022,74 @@ impl Quantizer {
             ls
         };
         if sh.dep_quant_used_flag {
-            for y in 0..th {
-                let t = &tu.transformed_coeffs[c_idx][y];
-                let q = &mut tu.quantized_transformed_coeffs[c_idx][y];
-                let l = &ls[y];
-                for x in 0..tw {
-                    q[x] = ((((t[x] as i32) << bd_shift) - bd_offset) / l[x]) as i16;
+            let mut q_state = 0;
+            let (log2_tb_width, log2_tb_height) = tu.get_log2_tb_size(c_idx);
+            let (log2_sb_w, log2_sb_h) = tu.get_log2_sb_size(c_idx);
+            let (tw, th) = tu.get_component_size(c_idx);
+            let num_sb_coeff = 1 << (log2_sb_w + log2_sb_h);
+            let mut last_scan_pos = num_sb_coeff;
+            let mut last_sub_block =
+                (1 << (log2_tb_width + log2_tb_height - (log2_sb_w + log2_sb_h))) - 1;
+            let mut trellis_table = vec2d![[(0, 0, f32::MIN); 4];last_sub_block+1 ; num_sb_coeff];
+            let coeff_order = &DIAG_SCAN_ORDER[log2_sb_h][log2_sb_w];
+            let sb_order = &DIAG_SCAN_ORDER[log2_tb_height - log2_sb_h][log2_tb_width - log2_sb_w];
+            let q = &mut tu.quantized_transformed_coeffs[c_idx];
+            let t = &tu.transformed_coeffs[c_idx];
+            let (mut x_s, mut y_s) = sb_order[last_sub_block];
+            let (mut x_0, mut y_0) = (x_s << log2_sb_w, y_s << log2_sb_h);
+            let mut is_not_first_sub_block = last_sub_block > 0;
+            let q0 = match ectx.extra_params.get("q0") {
+                Some(q0) => q0.parse::<f32>().unwrap(),
+                _ => 5.479_013_4,
+            };
+            let q1 = match ectx.extra_params.get("q1") {
+                Some(q1) => q1.parse::<f32>().unwrap(),
+                _ => 1.120_687_8,
+            };
+            let q2 = match ectx.extra_params.get("q2") {
+                Some(q2) => q2.parse::<f32>().unwrap(),
+                _ => 2.531_597_4,
+            };
+            let lambda = (2.0f32).powf(tu.qp as f32 / q0) * q1;
+            let delta = q2;
+            let mut is_trailing_zeros = true;
+            while {
+                if last_scan_pos == 0 {
+                    last_scan_pos = num_sb_coeff;
+                    last_sub_block -= 1;
+                    is_not_first_sub_block = last_sub_block > 0;
+                    (x_s, y_s) = sb_order[last_sub_block];
+                    (x_0, y_0) = (x_s << log2_sb_w, y_s << log2_sb_h);
                 }
-            }
+                last_scan_pos -= 1;
+                let x_c = x_0 + coeff_order[last_scan_pos].0;
+                let y_c = y_0 + coeff_order[last_scan_pos].1;
+                let (na, nq, _ncost) = self.search_dq(
+                    t,
+                    log2_sb_w,
+                    log2_sb_h,
+                    num_sb_coeff,
+                    q_state,
+                    sb_order,
+                    coeff_order,
+                    last_scan_pos,
+                    last_sub_block,
+                    &ls,
+                    bd_shift,
+                    bd_offset,
+                    tw * th,
+                    tu.qp,
+                    lambda,
+                    delta,
+                    is_trailing_zeros,
+                    &mut trellis_table,
+                    ectx,
+                );
+                is_trailing_zeros &= na == 0;
+                q[y_c][x_c] = nq;
+                q_state = ectx.q_state_trans_table[q_state][na & 1];
+                last_scan_pos > 0 || is_not_first_sub_block
+            } {}
         } else {
             for y in 0..th {
                 let t = &tu.transformed_coeffs[c_idx][y];
@@ -452,7 +1102,6 @@ impl Quantizer {
                     } else {
                         q[x] = (-((-tq + l[x] / 2) / l[x])) as i16;
                     }
-                    //q[x] = ((((t[x] as i32) << bd_shift) - bd_offset) / l[x]) as i16;
                 }
             }
         }
@@ -505,7 +1154,6 @@ impl Quantizer {
             let tu_c_res_mode = Transformer::get_tu_c_res_mode(tu);
 
             // scaling process for transform cofficients (8.7.3)
-
             let (qp_act_offset, mut qp) = if c_idx == 0 {
                 (if tu.cu_act_enabled_flag { -5 } else { 0 }, qp_prime.0)
             } else if tu_c_res_mode == 2 {
@@ -518,7 +1166,7 @@ impl Quantizer {
             let rect_non_ts_flag = if !tu.transform_skip_flag[c_idx] {
                 qp = (qp as isize + qp_act_offset).clamp(0, 63 + ectx.qp_bd_offset) as usize;
                 let rect_non_ts_flag = (log2_tw + log2_th) & 1;
-                bd_shift = ectx.bit_depth + rect_non_ts_flag as usize + (log2_tw + log2_th) / 2 - 5
+                bd_shift = ectx.bit_depth + rect_non_ts_flag + (log2_tw + log2_th) / 2 - 5
                     + sh.dep_quant_used_flag as usize;
                 rect_non_ts_flag
             } else {
@@ -573,11 +1221,11 @@ impl Quantizer {
 
             let mut ls: Vec2d<i32> = vec2d![0; th; tw];
             if sh.dep_quant_used_flag && !tu.transform_skip_flag[c_idx] {
-                let scale = LEVEL_SCALE[rect_non_ts_flag as usize][(qp + 1) % 6];
+                let scale = LEVEL_SCALE[rect_non_ts_flag][(qp + 1) % 6];
                 let shift = (qp + 1) / 6;
                 self.derive_ls(tu, c_idx, &mut ls, &m, scale, shift);
             } else {
-                let scale = LEVEL_SCALE[rect_non_ts_flag as usize][qp % 6];
+                let scale = LEVEL_SCALE[rect_non_ts_flag][qp % 6];
                 let shift = qp / 6;
                 self.derive_ls(tu, c_idx, &mut ls, &m, scale, shift);
             };
@@ -614,186 +1262,186 @@ impl Quantizer {
         let coeff_min = coeff_min as i32;
         let coeff_max = coeff_max as i32;
 
-        if is_x86_feature_detected!("avx2") {
-            use core::arch::x86_64::*;
-            match tw {
-                4 => {
-                    for y in 0..th {
-                        let d = &mut tu.dequantized_transformed_coeffs[c_idx][y];
-                        let dzy = &dz[y];
-                        let lsy = &ls[y];
-                        for x in 0..4 {
-                            d[x] = ((((dzy[x] as i32) * lsy[x] + bd_offset) >> bd_shift)
-                                .clamp(coeff_min, coeff_max))
-                                as i16;
-                        }
-                    }
-                }
-                8 => unsafe {
-                    for y in 0..th {
-                        let d = &mut tu.dequantized_transformed_coeffs[c_idx][y];
-                        let dzy = &dz[y];
-                        let lsy = &ls[y];
-                        let dzyv = _mm_lddqu_si128(dzy.as_ptr() as *const _);
-                        let dzyv = _mm256_cvtepi16_epi32(dzyv);
-                        let lsyv = _mm256_lddqu_si256(lsy.as_ptr() as *const _);
-                        let v = _mm256_mullo_epi32(dzyv, lsyv);
-                        let bd_offset = _mm256_set1_epi32(bd_offset);
-                        let v = _mm256_add_epi32(v, bd_offset);
-                        let v = _mm256_srai_epi32(v, 6);
-                        let lb = _mm256_set1_epi32(coeff_min);
-                        let v = _mm256_max_epi32(v, lb);
-                        let ub = _mm256_set1_epi32(coeff_max);
-                        let v = _mm256_min_epi32(v, ub);
-                        let shuffle = _mm256_set_epi8(
-                            0, 0, 0, 0, 0, 0, 0, 0, 13, 12, 9, 8, 5, 4, 1, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 13, 12, 9, 8, 5, 4, 1, 0,
-                        );
-                        let v = _mm256_shuffle_epi8(v, shuffle);
-                        let v0 = _mm256_extract_epi64(v, 0);
-                        let v1 = _mm256_extract_epi64(v, 2);
-                        *(d.as_mut_ptr() as *mut i64) = v0;
-                        *(d[4..].as_mut_ptr() as *mut i64) = v1;
-                    }
-                },
-                16 => unsafe {
-                    for y in 0..th {
-                        let d = &mut tu.dequantized_transformed_coeffs[c_idx][y];
-                        let dzy = &dz[y];
-                        let lsy = &ls[y];
-                        let dzyv = _mm_lddqu_si128(dzy.as_ptr() as *const _);
-                        let dzyv = _mm256_cvtepi16_epi32(dzyv);
-                        let lsyv = _mm256_lddqu_si256(lsy.as_ptr() as *const _);
-                        let v = _mm256_mullo_epi32(dzyv, lsyv);
-                        let bd_offset = _mm256_set1_epi32(bd_offset);
-                        let v = _mm256_add_epi32(v, bd_offset);
-                        let v = _mm256_srai_epi32(v, 7);
-                        let lb = _mm256_set1_epi32(coeff_min);
-                        let v = _mm256_max_epi32(v, lb);
-                        let ub = _mm256_set1_epi32(coeff_max);
-                        let v = _mm256_min_epi32(v, ub);
-                        let shuffle = _mm256_set_epi8(
-                            0, 0, 0, 0, 0, 0, 0, 0, 13, 12, 9, 8, 5, 4, 1, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 13, 12, 9, 8, 5, 4, 1, 0,
-                        );
-                        let v = _mm256_shuffle_epi8(v, shuffle);
-                        let v0 = _mm256_extract_epi64(v, 0);
-                        let v1 = _mm256_extract_epi64(v, 2);
-                        *(d.as_mut_ptr() as *mut i64) = v0;
-                        *(d[4..].as_mut_ptr() as *mut i64) = v1;
+        //if is_x86_feature_detected!("avx2") && false {
+        //use core::arch::x86_64::*;
+        //match tw {
+        //4 => {
+        //for y in 0..th {
+        //let d = &mut tu.dequantized_transformed_coeffs[c_idx][y];
+        //let dzy = &dz[y];
+        //let lsy = &ls[y];
+        //for x in 0..4 {
+        //d[x] = ((((dzy[x] as i32) * lsy[x] + bd_offset) >> bd_shift)
+        //.clamp(coeff_min, coeff_max))
+        //as i16;
+        //}
+        //}
+        //}
+        //8 => unsafe {
+        //for y in 0..th {
+        //let d = &mut tu.dequantized_transformed_coeffs[c_idx][y];
+        //let dzy = &dz[y];
+        //let lsy = &ls[y];
+        //let dzyv = _mm_lddqu_si128(dzy.as_ptr() as *const _);
+        //let dzyv = _mm256_cvtepi16_epi32(dzyv);
+        //let lsyv = _mm256_lddqu_si256(lsy.as_ptr() as *const _);
+        //let v = _mm256_mullo_epi32(dzyv, lsyv);
+        //let bd_offset = _mm256_set1_epi32(bd_offset);
+        //let v = _mm256_add_epi32(v, bd_offset);
+        //let v = _mm256_srai_epi32(v, 6);
+        //let lb = _mm256_set1_epi32(coeff_min);
+        //let v = _mm256_max_epi32(v, lb);
+        //let ub = _mm256_set1_epi32(coeff_max);
+        //let v = _mm256_min_epi32(v, ub);
+        //let shuffle = _mm256_set_epi8(
+        //0, 0, 0, 0, 0, 0, 0, 0, 13, 12, 9, 8, 5, 4, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+        //0, 13, 12, 9, 8, 5, 4, 1, 0,
+        //);
+        //let v = _mm256_shuffle_epi8(v, shuffle);
+        //let v0 = _mm256_extract_epi64(v, 0);
+        //let v1 = _mm256_extract_epi64(v, 2);
+        //*(d.as_mut_ptr() as *mut i64) = v0;
+        //*(d[4..].as_mut_ptr() as *mut i64) = v1;
+        //}
+        //},
+        //16 => unsafe {
+        //for y in 0..th {
+        //let d = &mut tu.dequantized_transformed_coeffs[c_idx][y];
+        //let dzy = &dz[y];
+        //let lsy = &ls[y];
+        //let dzyv = _mm_lddqu_si128(dzy.as_ptr() as *const _);
+        //let dzyv = _mm256_cvtepi16_epi32(dzyv);
+        //let lsyv = _mm256_lddqu_si256(lsy.as_ptr() as *const _);
+        //let v = _mm256_mullo_epi32(dzyv, lsyv);
+        //let bd_offset = _mm256_set1_epi32(bd_offset);
+        //let v = _mm256_add_epi32(v, bd_offset);
+        //let v = _mm256_srai_epi32(v, 7);
+        //let lb = _mm256_set1_epi32(coeff_min);
+        //let v = _mm256_max_epi32(v, lb);
+        //let ub = _mm256_set1_epi32(coeff_max);
+        //let v = _mm256_min_epi32(v, ub);
+        //let shuffle = _mm256_set_epi8(
+        //0, 0, 0, 0, 0, 0, 0, 0, 13, 12, 9, 8, 5, 4, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+        //0, 13, 12, 9, 8, 5, 4, 1, 0,
+        //);
+        //let v = _mm256_shuffle_epi8(v, shuffle);
+        //let v0 = _mm256_extract_epi64(v, 0);
+        //let v1 = _mm256_extract_epi64(v, 2);
+        //*(d.as_mut_ptr() as *mut i64) = v0;
+        //*(d[4..].as_mut_ptr() as *mut i64) = v1;
 
-                        let dzyv = _mm_lddqu_si128(dzy[8..].as_ptr() as *const _);
-                        let dzyv = _mm256_cvtepi16_epi32(dzyv);
-                        let lsyv = _mm256_lddqu_si256(lsy[8..].as_ptr() as *const _);
-                        let v = _mm256_mullo_epi32(dzyv, lsyv);
-                        let v = _mm256_add_epi32(v, bd_offset);
-                        let v = _mm256_srai_epi32(v, 7);
-                        let v = _mm256_max_epi32(v, lb);
-                        let v = _mm256_min_epi32(v, ub);
-                        let v = _mm256_shuffle_epi8(v, shuffle);
-                        let v0 = _mm256_extract_epi64(v, 0);
-                        let v1 = _mm256_extract_epi64(v, 2);
-                        *(d[8..].as_mut_ptr() as *mut i64) = v0;
-                        *(d[12..].as_mut_ptr() as *mut i64) = v1;
-                    }
-                },
-                32 => unsafe {
-                    for y in 0..th {
-                        let d = &mut tu.dequantized_transformed_coeffs[c_idx][y];
-                        let dzy = &dz[y];
-                        let lsy = &ls[y];
-                        let dzyv = _mm_lddqu_si128(dzy.as_ptr() as *const _);
-                        let dzyv = _mm256_cvtepi16_epi32(dzyv);
-                        let lsyv = _mm256_lddqu_si256(lsy.as_ptr() as *const _);
-                        let v = _mm256_mullo_epi32(dzyv, lsyv);
-                        let bd_offset = _mm256_set1_epi32(bd_offset);
-                        let v = _mm256_add_epi32(v, bd_offset);
-                        let v = _mm256_srai_epi32(v, 8);
-                        let lb = _mm256_set1_epi32(coeff_min);
-                        let v = _mm256_max_epi32(v, lb);
-                        let ub = _mm256_set1_epi32(coeff_max);
-                        let v = _mm256_min_epi32(v, ub);
-                        let shuffle = _mm256_set_epi8(
-                            0, 0, 0, 0, 0, 0, 0, 0, 13, 12, 9, 8, 5, 4, 1, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 13, 12, 9, 8, 5, 4, 1, 0,
-                        );
-                        let v = _mm256_shuffle_epi8(v, shuffle);
-                        let v0 = _mm256_extract_epi64(v, 0);
-                        let v1 = _mm256_extract_epi64(v, 2);
-                        *(d.as_mut_ptr() as *mut i64) = v0;
-                        *(d[4..].as_mut_ptr() as *mut i64) = v1;
+        //let dzyv = _mm_lddqu_si128(dzy[8..].as_ptr() as *const _);
+        //let dzyv = _mm256_cvtepi16_epi32(dzyv);
+        //let lsyv = _mm256_lddqu_si256(lsy[8..].as_ptr() as *const _);
+        //let v = _mm256_mullo_epi32(dzyv, lsyv);
+        //let v = _mm256_add_epi32(v, bd_offset);
+        //let v = _mm256_srai_epi32(v, 7);
+        //let v = _mm256_max_epi32(v, lb);
+        //let v = _mm256_min_epi32(v, ub);
+        //let v = _mm256_shuffle_epi8(v, shuffle);
+        //let v0 = _mm256_extract_epi64(v, 0);
+        //let v1 = _mm256_extract_epi64(v, 2);
+        //*(d[8..].as_mut_ptr() as *mut i64) = v0;
+        //*(d[12..].as_mut_ptr() as *mut i64) = v1;
+        //}
+        //},
+        //32 => unsafe {
+        //for y in 0..th {
+        //let d = &mut tu.dequantized_transformed_coeffs[c_idx][y];
+        //let dzy = &dz[y];
+        //let lsy = &ls[y];
+        //let dzyv = _mm_lddqu_si128(dzy.as_ptr() as *const _);
+        //let dzyv = _mm256_cvtepi16_epi32(dzyv);
+        //let lsyv = _mm256_lddqu_si256(lsy.as_ptr() as *const _);
+        //let v = _mm256_mullo_epi32(dzyv, lsyv);
+        //let bd_offset = _mm256_set1_epi32(bd_offset);
+        //let v = _mm256_add_epi32(v, bd_offset);
+        //let v = _mm256_srai_epi32(v, 8);
+        //let lb = _mm256_set1_epi32(coeff_min);
+        //let v = _mm256_max_epi32(v, lb);
+        //let ub = _mm256_set1_epi32(coeff_max);
+        //let v = _mm256_min_epi32(v, ub);
+        //let shuffle = _mm256_set_epi8(
+        //0, 0, 0, 0, 0, 0, 0, 0, 13, 12, 9, 8, 5, 4, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+        //0, 13, 12, 9, 8, 5, 4, 1, 0,
+        //);
+        //let v = _mm256_shuffle_epi8(v, shuffle);
+        //let v0 = _mm256_extract_epi64(v, 0);
+        //let v1 = _mm256_extract_epi64(v, 2);
+        //*(d.as_mut_ptr() as *mut i64) = v0;
+        //*(d[4..].as_mut_ptr() as *mut i64) = v1;
 
-                        for offset in (8..32).step_by(8) {
-                            let dzyv = _mm_lddqu_si128(dzy[offset..].as_ptr() as *const _);
-                            let dzyv = _mm256_cvtepi16_epi32(dzyv);
-                            let lsyv = _mm256_lddqu_si256(lsy[offset..].as_ptr() as *const _);
-                            let v = _mm256_mullo_epi32(dzyv, lsyv);
-                            let v = _mm256_add_epi32(v, bd_offset);
-                            let v = _mm256_srai_epi32(v, 8);
-                            let v = _mm256_max_epi32(v, lb);
-                            let v = _mm256_min_epi32(v, ub);
-                            let v = _mm256_shuffle_epi8(v, shuffle);
-                            let v0 = _mm256_extract_epi64(v, 0);
-                            let v1 = _mm256_extract_epi64(v, 2);
-                            *(d[offset..].as_mut_ptr() as *mut i64) = v0;
-                            *(d[offset + 4..].as_mut_ptr() as *mut i64) = v1;
-                        }
-                    }
-                },
-                _ => unsafe {
-                    for y in 0..th {
-                        let d = &mut tu.dequantized_transformed_coeffs[c_idx][y];
-                        let dzy = &dz[y];
-                        let lsy = &ls[y];
-                        let dzyv = _mm_lddqu_si128(dzy.as_ptr() as *const _);
-                        let dzyv = _mm256_cvtepi16_epi32(dzyv);
-                        let lsyv = _mm256_lddqu_si256(lsy.as_ptr() as *const _);
-                        let v = _mm256_mullo_epi32(dzyv, lsyv);
-                        let bd_offset = _mm256_set1_epi32(bd_offset);
-                        let v = _mm256_add_epi32(v, bd_offset);
-                        let v = _mm256_srai_epi32(v, 9);
-                        let lb = _mm256_set1_epi32(coeff_min);
-                        let v = _mm256_max_epi32(v, lb);
-                        let ub = _mm256_set1_epi32(coeff_max);
-                        let v = _mm256_min_epi32(v, ub);
-                        let shuffle = _mm256_set_epi8(
-                            0, 0, 0, 0, 0, 0, 0, 0, 13, 12, 9, 8, 5, 4, 1, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 13, 12, 9, 8, 5, 4, 1, 0,
-                        );
-                        let v = _mm256_shuffle_epi8(v, shuffle);
-                        let v0 = _mm256_extract_epi64(v, 0);
-                        let v1 = _mm256_extract_epi64(v, 2);
-                        *(d.as_mut_ptr() as *mut i64) = v0;
-                        *(d[4..].as_mut_ptr() as *mut i64) = v1;
+        //for offset in (8..32).step_by(8) {
+        //let dzyv = _mm_lddqu_si128(dzy[offset..].as_ptr() as *const _);
+        //let dzyv = _mm256_cvtepi16_epi32(dzyv);
+        //let lsyv = _mm256_lddqu_si256(lsy[offset..].as_ptr() as *const _);
+        //let v = _mm256_mullo_epi32(dzyv, lsyv);
+        //let v = _mm256_add_epi32(v, bd_offset);
+        //let v = _mm256_srai_epi32(v, 8);
+        //let v = _mm256_max_epi32(v, lb);
+        //let v = _mm256_min_epi32(v, ub);
+        //let v = _mm256_shuffle_epi8(v, shuffle);
+        //let v0 = _mm256_extract_epi64(v, 0);
+        //let v1 = _mm256_extract_epi64(v, 2);
+        //*(d[offset..].as_mut_ptr() as *mut i64) = v0;
+        //*(d[offset + 4..].as_mut_ptr() as *mut i64) = v1;
+        //}
+        //}
+        //},
+        //_ => unsafe {
+        //for y in 0..th {
+        //let d = &mut tu.dequantized_transformed_coeffs[c_idx][y];
+        //let dzy = &dz[y];
+        //let lsy = &ls[y];
+        //let dzyv = _mm_lddqu_si128(dzy.as_ptr() as *const _);
+        //let dzyv = _mm256_cvtepi16_epi32(dzyv);
+        //let lsyv = _mm256_lddqu_si256(lsy.as_ptr() as *const _);
+        //let v = _mm256_mullo_epi32(dzyv, lsyv);
+        //let bd_offset = _mm256_set1_epi32(bd_offset);
+        //let v = _mm256_add_epi32(v, bd_offset);
+        //let v = _mm256_srai_epi32(v, 9);
+        //let lb = _mm256_set1_epi32(coeff_min);
+        //let v = _mm256_max_epi32(v, lb);
+        //let ub = _mm256_set1_epi32(coeff_max);
+        //let v = _mm256_min_epi32(v, ub);
+        //let shuffle = _mm256_set_epi8(
+        //0, 0, 0, 0, 0, 0, 0, 0, 13, 12, 9, 8, 5, 4, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+        //0, 13, 12, 9, 8, 5, 4, 1, 0,
+        //);
+        //let v = _mm256_shuffle_epi8(v, shuffle);
+        //let v0 = _mm256_extract_epi64(v, 0);
+        //let v1 = _mm256_extract_epi64(v, 2);
+        //*(d.as_mut_ptr() as *mut i64) = v0;
+        //*(d[4..].as_mut_ptr() as *mut i64) = v1;
 
-                        for offset in (8..64).step_by(8) {
-                            let dzyv = _mm_lddqu_si128(dzy[offset..].as_ptr() as *const _);
-                            let dzyv = _mm256_cvtepi16_epi32(dzyv);
-                            let lsyv = _mm256_lddqu_si256(lsy[offset..].as_ptr() as *const _);
-                            let v = _mm256_mullo_epi32(dzyv, lsyv);
-                            let v = _mm256_add_epi32(v, bd_offset);
-                            let v = _mm256_srai_epi32(v, 9);
-                            let v = _mm256_max_epi32(v, lb);
-                            let v = _mm256_min_epi32(v, ub);
-                            let v = _mm256_shuffle_epi8(v, shuffle);
-                            let v0 = _mm256_extract_epi64(v, 0);
-                            let v1 = _mm256_extract_epi64(v, 2);
-                            *(d[offset..].as_mut_ptr() as *mut i64) = v0;
-                            *(d[offset + 4..].as_mut_ptr() as *mut i64) = v1;
-                        }
-                    }
-                },
-            }
-        } else {
-            for y in 0..th {
-                let d = &mut tu.dequantized_transformed_coeffs[c_idx][y];
-                let dzy = &dz[y];
-                let lsy = &ls[y];
-                for x in 0..tw {
-                    d[x] = ((((dzy[x] as i32) * lsy[x] + bd_offset) >> bd_shift)
-                        .clamp(coeff_min, coeff_max)) as i16;
-                }
+        //for offset in (8..64).step_by(8) {
+        //let dzyv = _mm_lddqu_si128(dzy[offset..].as_ptr() as *const _);
+        //let dzyv = _mm256_cvtepi16_epi32(dzyv);
+        //let lsyv = _mm256_lddqu_si256(lsy[offset..].as_ptr() as *const _);
+        //let v = _mm256_mullo_epi32(dzyv, lsyv);
+        //let v = _mm256_add_epi32(v, bd_offset);
+        //let v = _mm256_srai_epi32(v, 9);
+        //let v = _mm256_max_epi32(v, lb);
+        //let v = _mm256_min_epi32(v, ub);
+        //let v = _mm256_shuffle_epi8(v, shuffle);
+        //let v0 = _mm256_extract_epi64(v, 0);
+        //let v1 = _mm256_extract_epi64(v, 2);
+        //*(d[offset..].as_mut_ptr() as *mut i64) = v0;
+        //*(d[offset + 4..].as_mut_ptr() as *mut i64) = v1;
+        //}
+        //}
+        //},
+        //}
+        //} else {
+        for y in 0..th {
+            let d = &mut tu.dequantized_transformed_coeffs[c_idx][y];
+            let dzy = &dz[y];
+            let lsy = &ls[y];
+            for x in 0..tw {
+                d[x] = ((((dzy[x] as i32) * lsy[x] + bd_offset) >> bd_shift)
+                    .clamp(coeff_min, coeff_max)) as i16;
             }
         }
+        //}
     }
 }

@@ -330,7 +330,7 @@ impl SequenceParameterSet {
             scaling_matrix_for_lfnst_disabled_flag: false,
             scaling_matrix_for_alternative_colour_space_disabled_flag: false,
             scaling_matrix_designated_colour_space_flag: false,
-            dep_quant_enabled_flag: false,
+            dep_quant_enabled_flag: true,
             sign_data_hiding_enabled_flag: false,
             virtual_boundaries_enabled_flag: false,
             virtual_boundary_parameters: VirtualBoundaryParameters::new(),

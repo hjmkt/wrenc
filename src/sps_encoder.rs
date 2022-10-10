@@ -155,7 +155,7 @@ impl<'a> SpsEncoder<'a> {
                 debug_eprint!("sps_subpic_info_subpic_id_mapping_present_flag ");
                 bins.push_bin(subpic_info.subpic_id_mapping_present_flag);
                 if subpic_info.subpic_id_mapping_present_flag {
-                    let n = subpic_info.subpic_id_len as usize;
+                    let n = subpic_info.subpic_id_len;
                     for i in 0..subpic_info.num_subpics {
                         debug_eprint!("sps_subpic_info_subpic_id ");
                         bins.push_bins_with_size(subpic_info.subpic_id[i] as u64, n);

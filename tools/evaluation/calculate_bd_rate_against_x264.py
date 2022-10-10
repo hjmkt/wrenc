@@ -1,8 +1,8 @@
 import json
 import subprocess
 import os
-import numpy as np
 import statistics
+import shutil
 from pathlib import Path
 from scipy import interpolate
 from concurrent.futures import ProcessPoolExecutor
@@ -95,6 +95,7 @@ def calculate_bd_rate(ex_params):
         env["frame_rate"] = str(frame_rate)
         env["extra_params"] = f"--extra-params {ex_params}"
         env["preset"] = "placebo"
+        # env["max_split_depth"] = "--max-split-depth 2"
 
         with ProcessPoolExecutor(8) as executor:
             results = executor.map(
@@ -196,4 +197,6 @@ def calculate_bd_rate(ex_params):
         rwc_bd_psnrs.append(rwc_bd_psnr)
 
     print(rwc_bd_psnrs)
+    output_dir = f"videos_{pid}"
+    shutil.rmtree(output_dir)
     return statistics.mean(rwc_bd_psnrs)

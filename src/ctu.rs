@@ -736,35 +736,17 @@ impl TransformUnit {
         false
     }
 
-    //#[inline(always)]
-    //pub fn get_abs_level_gtx_flag(&self, c_idx: usize, x_c: usize, y_c: usize, j: usize) -> bool {
-    //let v = self.quantized_transformed_coeffs[c_idx][y_c][x_c];
-    //v.abs() as usize > (j << 1) + 1
-    //}
-
-    //#[inline(always)]
-    //pub fn get_par_level_flag(&self, c_idx: usize, x_c: usize, y_c: usize) -> bool {
-    //let v = self.quantized_transformed_coeffs[c_idx][y_c][x_c];
-    //v.abs() % 2 == 1
-    //}
-
-    //#[inline(always)]
-    //pub fn get_abs_remainder(&self, c_idx: usize, x_c: usize, y_c: usize) -> usize {
-    //// FIXME transform skip
-    //let v = self.quantized_transformed_coeffs[c_idx][y_c][x_c].abs();
-    //debug_assert!(v >= 4);
-    //((v - 4) / 2) as usize
-    //}
-
     pub fn get_dec_abs_level(
         &self,
+        abs_level: i16,
         c_idx: usize,
         x_c: usize,
         y_c: usize,
         q_state: usize,
         ectx: &EncoderContext,
     ) -> usize {
-        let v = self.quantized_transformed_coeffs[c_idx][y_c][x_c].abs();
+        //let v = self.quantized_transformed_coeffs[c_idx][y_c][x_c].abs();
+        let v = abs_level;
         let (log2_tb_width, log2_tb_height) = self.get_log2_tb_size(c_idx);
         let base_level = 0;
         let mut loc_sum_abs = 0;
@@ -788,7 +770,7 @@ impl TransformUnit {
             }
         }
         loc_sum_abs = (loc_sum_abs - base_level * 5).clamp(0, 31);
-        let c_rice_param = c_rice_params[loc_sum_abs as usize];
+        let c_rice_param = c_rice_params[loc_sum_abs];
         let zero_pos = (if q_state < 2 { 1 } else { 2 }) << c_rice_param;
         (if v == 0 {
             zero_pos
@@ -827,7 +809,7 @@ impl TransformUnit {
         {
             4
         } else {
-            self.get_log2_tb_size(c_idx).0.min(5) as usize
+            self.get_log2_tb_size(c_idx).0.min(5)
         };
         let log2_tb_height: usize = if sps.mts_enabled_flag
             && cu.sbt_flag
@@ -837,7 +819,7 @@ impl TransformUnit {
         {
             4
         } else {
-            self.get_log2_tb_size(c_idx).1.min(5) as usize
+            self.get_log2_tb_size(c_idx).1.min(5)
         };
         (log2_tb_width, log2_tb_height)
     }
@@ -1434,7 +1416,11 @@ impl CodingUnit {
     }
 
     pub fn get_cclm_mode_idx(&self) -> usize {
-        self.intra_pred_mode[1] as usize - IntraPredMode::LT_CCLM as usize
+        if self.get_cclm_mode_flag() {
+            self.intra_pred_mode[1] as usize - IntraPredMode::LT_CCLM as usize
+        } else {
+            0
+        }
     }
 
     pub fn is_below_left_available(&self) -> bool {
@@ -1912,6 +1898,26 @@ impl CodingTree {
             tmp.cus = vec![cu];
         }
         ct
+    }
+
+    #[inline(always)]
+    pub fn get_component_size(&self, c_idx: usize) -> (usize, usize) {
+        if c_idx == 0 {
+            (self.width, self.height)
+        } else {
+            // FIXME
+            (self.width / 2, self.height / 2)
+        }
+    }
+
+    #[inline(always)]
+    pub fn get_component_pos(&self, c_idx: usize) -> (usize, usize) {
+        if c_idx == 0 {
+            (self.x, self.y)
+        } else {
+            // FIXME
+            (self.x / 2, self.y / 2)
+        }
     }
 
     pub fn get_mode_type_condition(&self, sh: &SliceHeader) -> usize {

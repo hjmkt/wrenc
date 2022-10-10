@@ -621,7 +621,7 @@ impl EncoderContext {
             }
             debug_eprintln!("in val {:?}", qp_in_val);
             debug_eprintln!("out val {:?}", qp_out_val);
-            self.chroma_qp_table[i][qp_in_val[0] as usize] = qp_out_val[0] as isize;
+            self.chroma_qp_table[i][qp_in_val[0] as usize] = qp_out_val[0];
             for k in (-self.qp_bd_offset..qp_in_val[0]).rev() {
                 self.chroma_qp_table[i][k as usize] = num::clamp(
                     self.chroma_qp_table[i][k as usize + 1] - 1,

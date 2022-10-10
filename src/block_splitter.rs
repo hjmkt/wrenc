@@ -14,11 +14,11 @@ pub struct BlockSplitter {
 }
 
 impl BlockSplitter {
-    pub fn new() -> BlockSplitter {
+    pub fn new(ectx: &EncoderContext) -> BlockSplitter {
         BlockSplitter {
             intra_predictor: IntraPredictor::new(),
             transformer: Transformer::new(),
-            quantizer: Quantizer::new(),
+            quantizer: Quantizer::new(ectx),
         }
     }
 
@@ -100,49 +100,136 @@ impl BlockSplitter {
 
         let l0 = match ectx.extra_params.get("l0") {
             Some(l0) => l0.parse::<f32>().unwrap(),
-            _ => 2.495_123_1,
+            _ => {
+                if sh.dep_quant_used_flag {
+                    2.435_058_4
+                } else {
+                    2.495_123_1
+                }
+            }
         };
         let l1 = match ectx.extra_params.get("l1") {
             Some(l1) => l1.parse::<f32>().unwrap(),
-            _ => 1.321_590_3,
+            _ => {
+                if sh.dep_quant_used_flag {
+                    1.481_710_4
+                } else {
+                    1.321_590_3
+                }
+            }
         };
         let l2 = match ectx.extra_params.get("l2") {
             Some(l2) => l2.parse::<f32>().unwrap(),
-            _ => 0.673_733_23,
+            _ => {
+                if sh.dep_quant_used_flag {
+                    0.439_848_24
+                } else {
+                    0.673_733_23
+                }
+            }
         };
         let l3 = match ectx.extra_params.get("l3") {
             Some(l3) => l3.parse::<f32>().unwrap(),
-            _ => 2.694_721_2,
+            _ => {
+                if sh.dep_quant_used_flag {
+                    2.285_208_5
+                } else {
+                    2.694_721_2
+                }
+            }
         };
         let l4 = match ectx.extra_params.get("l4") {
             Some(l4) => l4.parse::<f32>().unwrap(),
-            _ => 0.596_190_8,
+            _ => {
+                if sh.dep_quant_used_flag {
+                    0.962_686_4
+                } else {
+                    0.596_190_8
+                }
+            }
         };
         let l5 = match ectx.extra_params.get("l5") {
             Some(l5) => l5.parse::<f32>().unwrap(),
-            _ => 1.762_286_1,
+            _ => {
+                if sh.dep_quant_used_flag {
+                    1.152_884_8
+                } else {
+                    1.762_286_1
+                }
+            }
         };
         let l6 = match ectx.extra_params.get("l6") {
             Some(l6) => l6.parse::<f32>().unwrap(),
-            _ => 0.671_961_67,
+            _ => {
+                if sh.dep_quant_used_flag {
+                    1.247_534_9
+                } else {
+                    0.671_961_67
+                }
+            }
         };
         let l7 = match ectx.extra_params.get("l7") {
             Some(l7) => l7.parse::<f32>().unwrap(),
-            _ => 1.158_880_6,
+            _ => {
+                if sh.dep_quant_used_flag {
+                    4.977_223
+                } else {
+                    7.0
+                }
+            }
         };
         let l8 = match ectx.extra_params.get("l8") {
             Some(l8) => l8.parse::<f32>().unwrap(),
-            _ => 7.915_166,
+            _ => {
+                if sh.dep_quant_used_flag {
+                    2.122_24
+                } else {
+                    7.915_166
+                }
+            }
         };
         let l9 = match ectx.extra_params.get("l9") {
             Some(l9) => l9.parse::<f32>().unwrap(),
-            _ => 1.944_860_6,
+            _ => {
+                if sh.dep_quant_used_flag {
+                    1.939_296_1
+                } else {
+                    1.944_860_6
+                }
+            }
         };
         let l10 = match ectx.extra_params.get("l10") {
             Some(l10) => l10.parse::<f32>().unwrap(),
-            _ => 0.979_434_97,
+            _ => {
+                if sh.dep_quant_used_flag {
+                    0.867_019_95
+                } else {
+                    0.979_434_97
+                }
+            }
+        };
+        let l11 = match ectx.extra_params.get("l10") {
+            Some(l10) => l10.parse::<f32>().unwrap(),
+            _ => {
+                if sh.dep_quant_used_flag {
+                    0.540_653_9
+                } else {
+                    0.1
+                }
+            }
         };
 
+        let cclm_bits = if sh.sps.cclm_enabled_flag {
+            if cclm_mode_flag {
+                l11 + (cclm_mode_idx as f32 + l9).log2()
+            } else if tree_type == TreeType::DUAL_TREE_LUMA {
+                0.0
+            } else {
+                l10
+            }
+        } else {
+            0.0
+        };
         let mode_bits = if non_planar_flag {
             l0 + if mpm_flag {
                 (mpm_idx as f32 + l1).log2()
@@ -151,13 +238,7 @@ impl BlockSplitter {
             }
         } else {
             l4
-        } + if cclm_mode_flag {
-            (cclm_mode_idx as f32 + l9).log2()
-        } else if tree_type == TreeType::DUAL_TREE_LUMA {
-            0.0
-        } else {
-            l10
-        };
+        } + cclm_bits;
         let header_bits = match ectx.extra_params.get("b") {
             Some(beta) => beta.parse::<f32>().unwrap(),
             _ => l5,
@@ -166,25 +247,83 @@ impl BlockSplitter {
             match tree_type {
                 TreeType::SINGLE_TREE => header_bits + mode_bits,
                 TreeType::DUAL_TREE_LUMA => header_bits / 3.0 + mode_bits,
-                TreeType::DUAL_TREE_CHROMA => header_bits / 1.5,
+                TreeType::DUAL_TREE_CHROMA => cclm_bits,
             }
         };
-        let level: f32 = tu
-            .quantized_transformed_coeffs
-            .iter()
-            .flat_map(|a| {
-                a.data.iter().map(|v| {
-                    let v = v.unsigned_abs() as f32;
-                    (v + l6).log2()
+        let level: f32 = if sh.dep_quant_used_flag {
+            let mut sum = 0.0;
+            for c_idx in 0..3 {
+                if !tu.is_component_active(c_idx) {
+                    continue;
+                }
+                let mut q_state = 0;
+                let (log2_tb_width, log2_tb_height) = tu.get_log2_tb_size(c_idx);
+                let (log2_sb_w, log2_sb_h) = tu.get_log2_sb_size(c_idx);
+                let num_sb_coeff = 1 << (log2_sb_w + log2_sb_h);
+                let mut last_scan_pos = num_sb_coeff;
+                let mut last_sub_block =
+                    (1 << (log2_tb_width + log2_tb_height - (log2_sb_w + log2_sb_h))) - 1;
+                let coeff_order = &DIAG_SCAN_ORDER[log2_sb_h][log2_sb_w];
+                let sb_order =
+                    &DIAG_SCAN_ORDER[log2_tb_height - log2_sb_h][log2_tb_width - log2_sb_w];
+                let q = &tu.quantized_transformed_coeffs[c_idx];
+                let (mut x_s, mut y_s) = sb_order[last_sub_block];
+                let (mut x_0, mut y_0) = (x_s << log2_sb_w, y_s << log2_sb_h);
+                let mut is_not_first_sub_block = last_sub_block > 0;
+                let mut is_trailing_zeros = true;
+                while {
+                    if last_scan_pos == 0 {
+                        last_scan_pos = num_sb_coeff;
+                        last_sub_block -= 1;
+                        is_not_first_sub_block = last_sub_block > 0;
+                        (x_s, y_s) = sb_order[last_sub_block];
+                        (x_0, y_0) = (x_s << log2_sb_w, y_s << log2_sb_h);
+                    }
+                    last_scan_pos -= 1;
+                    let x_c = x_0 + coeff_order[last_scan_pos].0;
+                    let y_c = y_0 + coeff_order[last_scan_pos].1;
+                    if q[y_c][x_c] == 0 {
+                        sum += if is_trailing_zeros { 0.0 } else { l6.log2() };
+                        q_state = ectx.q_state_trans_table[q_state][0];
+                    } else if q_state > 1 {
+                        if q[y_c][x_c] > 0 {
+                            let a = (q[y_c][x_c] as usize + 1) / 2;
+                            sum += (a as f32 + l6).log2();
+                            q_state = ectx.q_state_trans_table[q_state][a & 1];
+                        } else {
+                            let a = ((-q[y_c][x_c]) as usize + 1) / 2;
+                            sum += (a as f32 + l6).log2();
+                            q_state = ectx.q_state_trans_table[q_state][a & 1];
+                        }
+                    } else if q[y_c][x_c] > 0 {
+                        let a = q[y_c][x_c] as usize / 2;
+                        sum += (a as f32 + l6).log2();
+                        q_state = ectx.q_state_trans_table[q_state][a & 1];
+                    } else {
+                        let a = (-q[y_c][x_c]) as usize / 2;
+                        sum += (a as f32 + l6).log2();
+                        q_state = ectx.q_state_trans_table[q_state][a & 1];
+                    }
+                    is_trailing_zeros &= q[y_c][x_c] == 0;
+                    last_scan_pos > 0 || is_not_first_sub_block
+                } {}
+            }
+            sum
+        } else {
+            tu.quantized_transformed_coeffs
+                .iter()
+                .flat_map(|a| {
+                    a.data.iter().map(|v| {
+                        let v = v.unsigned_abs() as f32;
+                        (v + l6).log2()
+                    })
                 })
-            })
-            .sum::<f32>() as f32
-            + header_bits;
-        let gamma = match ectx.extra_params.get("c") {
+                .sum::<f32>()
+        } + header_bits;
+        let d = match ectx.extra_params.get("c") {
             Some(gamma) => gamma.parse::<f32>().unwrap(),
             _ => l7,
         };
-        let d = 6.0 * gamma;
         let lambda = match ectx.extra_params.get("a") {
             Some(alpha) => (2.0f32).powf(tu.qp as f32 / d) * alpha.parse::<f32>().unwrap(),
             _ => (2.0f32).powf(tu.qp as f32 / d) * l8,
@@ -288,7 +427,7 @@ impl BlockSplitter {
                     (v + 0.65).log2()
                 })
             })
-            .sum::<f32>() as f32
+            .sum::<f32>()
             + header_bits;
         let gamma = match ectx.extra_params.get("c") {
             Some(gamma) => gamma.parse::<f32>().unwrap(),
@@ -373,37 +512,83 @@ impl BlockSplitter {
 
         let p0 = match ectx.extra_params.get("p0") {
             Some(p0) => p0.parse::<f32>().unwrap(),
-            _ => 2.668_370_7,
+            _ => {
+                if sh.dep_quant_used_flag {
+                    1.587_433_7
+                } else {
+                    2.668_370_7
+                }
+            }
         };
         let p1 = match ectx.extra_params.get("p1") {
             Some(p1) => p1.parse::<f32>().unwrap(),
-            _ => 1.922_151_4,
+            _ => {
+                if sh.dep_quant_used_flag {
+                    1.880_139_5
+                } else {
+                    1.922_151_4
+                }
+            }
         };
         let p2 = match ectx.extra_params.get("p2") {
             Some(p2) => p2.parse::<f32>().unwrap(),
-            _ => 0.559_554_4,
+            _ => {
+                if sh.dep_quant_used_flag {
+                    0.860_624_1
+                } else {
+                    0.559_554_4
+                }
+            }
         };
         let p3 = match ectx.extra_params.get("p3") {
             Some(p3) => p3.parse::<f32>().unwrap(),
-            _ => 1.180_406_8,
+            _ => {
+                if sh.dep_quant_used_flag {
+                    1.309_252
+                } else {
+                    1.180_406_8
+                }
+            }
         };
-        let p4 = match ectx.extra_params.get("p4") {
-            Some(p4) => p4.parse::<f32>().unwrap(),
-            _ => 0.747_049_75,
+        let l6 = match ectx.extra_params.get("l6") {
+            Some(l6) => l6.parse::<f32>().unwrap(),
+            _ => {
+                if sh.dep_quant_used_flag {
+                    1.247_534_9
+                } else {
+                    0.747_049_75
+                }
+            }
         };
-        let p5 = match ectx.extra_params.get("p5") {
-            Some(p5) => p5.parse::<f32>().unwrap(),
-            _ => 1.029_335,
+        let l7 = match ectx.extra_params.get("l7") {
+            Some(l7) => l7.parse::<f32>().unwrap(),
+            _ => {
+                if sh.dep_quant_used_flag {
+                    4.977_223
+                } else {
+                    7.0
+                }
+            }
         };
-        let p6 = match ectx.extra_params.get("p6") {
-            Some(p6) => p6.parse::<f32>().unwrap(),
-            _ => 7.775_918,
+        let l8 = match ectx.extra_params.get("l8") {
+            Some(l8) => l8.parse::<f32>().unwrap(),
+            _ => {
+                if sh.dep_quant_used_flag {
+                    2.122_24
+                } else {
+                    7.915_166
+                }
+            }
         };
 
-        let mode_bits = if cclm_mode_flag {
-            p0 + (cclm_mode_idx as f32 + p1).log2()
+        let mode_bits = if sh.sps.cclm_enabled_flag {
+            if cclm_mode_flag {
+                p0 + (cclm_mode_idx as f32 + p1).log2()
+            } else {
+                p2
+            }
         } else {
-            p2
+            0.0
         };
         let header_bits = match ectx.extra_params.get("b") {
             Some(beta) => beta.parse::<f32>().unwrap(),
@@ -417,24 +602,80 @@ impl BlockSplitter {
                 TreeType::DUAL_TREE_CHROMA => header_bits + mode_bits,
             }
         };
-        let level: f32 = tu.quantized_transformed_coeffs[1..]
-            .iter()
-            .flat_map(|a| {
-                a.data.iter().map(|v| {
-                    let v = v.unsigned_abs() as f32;
-                    (v + p4).log2()
+        let level: f32 = if sh.dep_quant_used_flag {
+            let mut sum = 0.0;
+            for c_idx in 1..3 {
+                let mut is_trailing_zeros = true;
+                let mut q_state = 0;
+                let (log2_tb_width, log2_tb_height) = tu.get_log2_tb_size(c_idx);
+                let (log2_sb_w, log2_sb_h) = tu.get_log2_sb_size(c_idx);
+                let num_sb_coeff = 1 << (log2_sb_w + log2_sb_h);
+                let mut last_scan_pos = num_sb_coeff;
+                let mut last_sub_block =
+                    (1 << (log2_tb_width + log2_tb_height - (log2_sb_w + log2_sb_h))) - 1;
+                let coeff_order = &DIAG_SCAN_ORDER[log2_sb_h][log2_sb_w];
+                let sb_order =
+                    &DIAG_SCAN_ORDER[log2_tb_height - log2_sb_h][log2_tb_width - log2_sb_w];
+                let q = &tu.quantized_transformed_coeffs[c_idx];
+                let (mut x_s, mut y_s) = sb_order[last_sub_block];
+                let (mut x_0, mut y_0) = (x_s << log2_sb_w, y_s << log2_sb_h);
+                let mut is_not_first_sub_block = last_sub_block > 0;
+                while {
+                    if last_scan_pos == 0 {
+                        last_scan_pos = num_sb_coeff;
+                        last_sub_block -= 1;
+                        is_not_first_sub_block = last_sub_block > 0;
+                        (x_s, y_s) = sb_order[last_sub_block];
+                        (x_0, y_0) = (x_s << log2_sb_w, y_s << log2_sb_h);
+                    }
+                    last_scan_pos -= 1;
+                    let x_c = x_0 + coeff_order[last_scan_pos].0;
+                    let y_c = y_0 + coeff_order[last_scan_pos].1;
+                    if q[y_c][x_c] == 0 {
+                        sum += if is_trailing_zeros { 0.0 } else { l6.log2() };
+                        q_state = ectx.q_state_trans_table[q_state][0];
+                    } else if q_state > 1 {
+                        if q[y_c][x_c] > 0 {
+                            let a = (q[y_c][x_c] as usize + 1) / 2;
+                            sum += (a as f32 + l6).log2();
+                            q_state = ectx.q_state_trans_table[q_state][a & 1];
+                        } else {
+                            let a = ((-q[y_c][x_c]) as usize + 1) / 2;
+                            sum += (a as f32 + l6).log2();
+                            q_state = ectx.q_state_trans_table[q_state][a & 1];
+                        }
+                    } else if q[y_c][x_c] > 0 {
+                        let a = q[y_c][x_c] as usize / 2;
+                        sum += (a as f32 + l6).log2();
+                        q_state = ectx.q_state_trans_table[q_state][a & 1];
+                    } else {
+                        let a = (-q[y_c][x_c]) as usize / 2;
+                        sum += (a as f32 + l6).log2();
+                        q_state = ectx.q_state_trans_table[q_state][a & 1];
+                    }
+                    is_trailing_zeros &= q[y_c][x_c] == 0;
+                    last_scan_pos > 0 || is_not_first_sub_block
+                } {}
+            }
+            sum
+        } else {
+            tu.quantized_transformed_coeffs[1..]
+                .iter()
+                .flat_map(|a| {
+                    a.data.iter().map(|v| {
+                        let v = v.unsigned_abs() as f32;
+                        (v + l6).log2()
+                    })
                 })
-            })
-            .sum::<f32>() as f32
-            + header_bits;
-        let gamma = match ectx.extra_params.get("c") {
+                .sum::<f32>()
+        } + header_bits;
+        let d = match ectx.extra_params.get("c") {
             Some(gamma) => gamma.parse::<f32>().unwrap(),
-            _ => p5,
+            _ => l7,
         };
-        let d = 6.0 * gamma;
         let lambda = match ectx.extra_params.get("a") {
             Some(alpha) => (2.0f32).powf(tu.qp as f32 / d) * alpha.parse::<f32>().unwrap(),
-            _ => (2.0f32).powf(tu.qp as f32 / d) * p6,
+            _ => (2.0f32).powf(tu.qp as f32 / d) * l8,
         };
         ssd as f32 + lambda * level
     }
@@ -463,77 +704,94 @@ impl BlockSplitter {
                     let luma_cu = luma_cu.lock().unwrap();
                     luma_cu.get_intra_chroma_pred_mode_and_mip_chroma_direct_mode_flag()
                 };
-                let cache_reconsts = |ct: &Arc<Mutex<CodingTree>>| -> Vec<Vec2d<u8>> {
-                    let ct = ct.lock().unwrap();
-                    let tile = ct.tile.as_ref().unwrap();
-                    let tile = tile.lock().unwrap();
-                    let mut reconsts = vec![];
-                    for c_idx in 1..3 {
-                        let mut reconst = vec2d![0; ct.height/2; ct.width/2];
-                        let tile_reconst = &tile.reconst_pixels.borrow()[c_idx];
-                        for y in ct.y / 2..ct.y / 2 + ct.height / 2 {
-                            for x in ct.x / 2..ct.x / 2 + ct.width / 2 {
-                                reconst[y - ct.y / 2][x - ct.x / 2] = tile_reconst[y][x];
+                if sh.sps.cclm_enabled_flag {
+                    let cache_reconsts = |ct: &Arc<Mutex<CodingTree>>| -> Vec<Vec2d<u8>> {
+                        let ct = ct.lock().unwrap();
+                        let tile = ct.tile.as_ref().unwrap();
+                        let tile = tile.lock().unwrap();
+                        let mut reconsts = vec![];
+                        for c_idx in 1..3 {
+                            let mut reconst = vec2d![0; ct.height/2; ct.width/2];
+                            let tile_reconst = &tile.reconst_pixels.borrow()[c_idx];
+                            for y in ct.y / 2..ct.y / 2 + ct.height / 2 {
+                                for x in ct.x / 2..ct.x / 2 + ct.width / 2 {
+                                    reconst[y - ct.y / 2][x - ct.x / 2] = tile_reconst[y][x];
+                                }
+                            }
+                            reconsts.push(reconst);
+                        }
+                        reconsts
+                    };
+                    let restore_reconsts = |ct: &Arc<Mutex<CodingTree>>, cache: Vec<Vec2d<u8>>| {
+                        let ct = ct.lock().unwrap();
+                        let tile = ct.tile.as_ref().unwrap();
+                        let tile = &mut tile.lock().unwrap();
+                        for c_idx in 1..3 {
+                            let tile_reconst = &mut tile.reconst_pixels.borrow_mut()[c_idx];
+                            for y in ct.y / 2..ct.y / 2 + ct.height / 2 {
+                                for x in ct.x / 2..ct.x / 2 + ct.width / 2 {
+                                    tile_reconst[y][x] =
+                                        cache[c_idx - 1][y - ct.y / 2][x - ct.x / 2];
+                                }
                             }
                         }
-                        reconsts.push(reconst);
+                    };
+                    let current_cost =
+                        self.get_chroma_intra_pred_cost(chroma_pred_mode, ct, sh, ectx);
+                    let current_reconsts = cache_reconsts(ct);
+                    let cclm_lt_cost =
+                        self.get_chroma_intra_pred_cost(IntraPredMode::LT_CCLM, ct, sh, ectx);
+                    let lt_reconsts = cache_reconsts(ct);
+                    let cclm_t_cost =
+                        self.get_chroma_intra_pred_cost(IntraPredMode::T_CCLM, ct, sh, ectx);
+                    let t_reconsts = cache_reconsts(ct);
+                    let cclm_l_cost =
+                        self.get_chroma_intra_pred_cost(IntraPredMode::L_CCLM, ct, sh, ectx);
+                    let l_reconsts = cache_reconsts(ct);
+                    let chroma_cand_costs = [current_cost, cclm_lt_cost, cclm_t_cost, cclm_l_cost];
+                    let chroma_min_cost = chroma_cand_costs.iter().fold(f32::MAX, |m, v| v.min(m));
+                    let chroma_min_cost_idx = chroma_cand_costs
+                        .iter()
+                        .position(|x| x == &chroma_min_cost)
+                        .unwrap();
+                    let cu = {
+                        let ct = ct.lock().unwrap();
+                        ct.cus[0].clone()
+                    };
+                    if chroma_min_cost_idx == 0 {
+                        let cu = &mut cu.lock().unwrap();
+                        cu.set_intra_pred_mode([chroma_pred_mode; 3]);
+                        restore_reconsts(ct, current_reconsts);
+                    } else if chroma_min_cost_idx == 1 {
+                        let cu = &mut cu.lock().unwrap();
+                        cu.set_intra_pred_mode([IntraPredMode::LT_CCLM; 3]);
+                        restore_reconsts(ct, lt_reconsts);
+                    } else if chroma_min_cost_idx == 2 {
+                        let cu = &mut cu.lock().unwrap();
+                        cu.set_intra_pred_mode([IntraPredMode::T_CCLM; 3]);
+                        restore_reconsts(ct, t_reconsts);
+                    } else if chroma_min_cost_idx == 3 {
+                        let cu = &mut cu.lock().unwrap();
+                        cu.set_intra_pred_mode([IntraPredMode::L_CCLM; 3]);
+                        restore_reconsts(ct, l_reconsts);
                     }
-                    reconsts
-                };
-                let restore_reconsts = |ct: &Arc<Mutex<CodingTree>>, cache: Vec<Vec2d<u8>>| {
-                    let ct = ct.lock().unwrap();
-                    let tile = ct.tile.as_ref().unwrap();
-                    let tile = &mut tile.lock().unwrap();
-                    for c_idx in 1..3 {
-                        let tile_reconst = &mut tile.reconst_pixels.borrow_mut()[c_idx];
-                        for y in ct.y / 2..ct.y / 2 + ct.height / 2 {
-                            for x in ct.x / 2..ct.x / 2 + ct.width / 2 {
-                                tile_reconst[y][x] = cache[c_idx - 1][y - ct.y / 2][x - ct.x / 2];
-                            }
-                        }
-                    }
-                };
-                let current_cost = self.get_chroma_intra_pred_cost(chroma_pred_mode, ct, sh, ectx);
-                let current_reconsts = cache_reconsts(ct);
-                let cclm_lt_cost =
-                    self.get_chroma_intra_pred_cost(IntraPredMode::LT_CCLM, ct, sh, ectx);
-                let lt_reconsts = cache_reconsts(ct);
-                let cclm_t_cost =
-                    self.get_chroma_intra_pred_cost(IntraPredMode::T_CCLM, ct, sh, ectx);
-                let t_reconsts = cache_reconsts(ct);
-                let cclm_l_cost =
-                    self.get_chroma_intra_pred_cost(IntraPredMode::L_CCLM, ct, sh, ectx);
-                let l_reconsts = cache_reconsts(ct);
-                let chroma_cand_costs = [current_cost, cclm_lt_cost, cclm_t_cost, cclm_l_cost];
-                let chroma_min_cost = chroma_cand_costs.iter().fold(f32::MAX, |m, v| v.min(m));
-                let chroma_min_cost_idx = chroma_cand_costs
-                    .iter()
-                    .position(|x| x == &chroma_min_cost)
-                    .unwrap();
-                let cu = {
-                    let ct = ct.lock().unwrap();
-                    ct.cus[0].clone()
-                };
-                if chroma_min_cost_idx == 0 {
+                    chroma_min_cost
+                } else {
+                    let current_cost =
+                        self.get_chroma_intra_pred_cost(chroma_pred_mode, ct, sh, ectx);
+                    let cu = {
+                        let ct = ct.lock().unwrap();
+                        ct.cus[0].clone()
+                    };
                     let cu = &mut cu.lock().unwrap();
                     cu.set_intra_pred_mode([chroma_pred_mode; 3]);
-                    restore_reconsts(ct, current_reconsts);
-                } else if chroma_min_cost_idx == 1 {
-                    let cu = &mut cu.lock().unwrap();
-                    cu.set_intra_pred_mode([IntraPredMode::LT_CCLM; 3]);
-                    restore_reconsts(ct, lt_reconsts);
-                } else if chroma_min_cost_idx == 2 {
-                    let cu = &mut cu.lock().unwrap();
-                    cu.set_intra_pred_mode([IntraPredMode::T_CCLM; 3]);
-                    restore_reconsts(ct, t_reconsts);
-                } else if chroma_min_cost_idx == 3 {
-                    let cu = &mut cu.lock().unwrap();
-                    cu.set_intra_pred_mode([IntraPredMode::L_CCLM; 3]);
-                    restore_reconsts(ct, l_reconsts);
+                    current_cost
                 }
-                chroma_min_cost
             } else {
-                let cand_modes = [0, 1, 2, 10, 18, 26, 34, 42, 50, 58, 66];
+                //let cand_modes = [0, 1, 2, 10, 18, 26, 34, 42, 50, 58, 66];
+                let cand_modes = [
+                    0, 1, 2, 6, 10, 14, 18, 22, 26, 30, 34, 38, 42, 46, 50, 54, 58, 62, 66,
+                ];
                 let cand_costs = cand_modes
                     .iter()
                     .map(|m| {
@@ -611,7 +869,7 @@ impl BlockSplitter {
                         (current_mode, current_cost)
                     };
                 let (dir_mode, dir_cost) =
-                    step_search(cand_modes[min_dir_cost_idx], 4, min_dir_cost);
+                    step_search(cand_modes[min_dir_cost_idx], 2, min_dir_cost);
                 let cand_modes = [0, 1, dir_mode];
                 let cand_costs = [cand_costs[0], cand_costs[1], dir_cost];
                 let mut min_cost = cand_costs.iter().fold(f32::MAX, |m, v| v.min(m));
@@ -840,6 +1098,31 @@ impl BlockSplitter {
                 let ct = ct.lock().unwrap();
                 Arc::new(Mutex::new(ct.clone()))
             };
+            let no_split_reconsts = {
+                let ct = ct.lock().unwrap();
+                let tile = ct.tile.as_ref().unwrap();
+                let tile = tile.lock().unwrap();
+                let mut reconsts = vec![];
+                for c_idx in 0..3 {
+                    if ct.tree_type == TreeType::DUAL_TREE_LUMA && c_idx > 0 {
+                        break;
+                    } else if ct.tree_type == TreeType::DUAL_TREE_CHROMA && c_idx == 0 {
+                        reconsts.push(vec2d![0; 1; 1]);
+                        continue;
+                    }
+                    let (cx, cy) = ct.get_component_pos(c_idx);
+                    let (cw, ch) = ct.get_component_size(c_idx);
+                    let mut reconst = vec2d![0; ch; cw];
+                    let tile_reconst = &tile.reconst_pixels.borrow()[c_idx];
+                    for y in cy..cy + ch {
+                        for x in cx..cx + cw {
+                            reconst[y - cy][x - cx] = tile_reconst[y][x];
+                        }
+                    }
+                    reconsts.push(reconst);
+                }
+                reconsts
+            };
             let n = {
                 let parent = split_ct.clone();
                 let split_ct = &mut split_ct.lock().unwrap();
@@ -856,6 +1139,25 @@ impl BlockSplitter {
             }
             //println!("split={split_cost}, no={no_split_cost}");
             let cost = if split_cost > no_split_cost {
+                let ct = ct.lock().unwrap();
+                let tile = ct.tile.as_ref().unwrap();
+                let tile = &mut tile.lock().unwrap();
+                #[allow(clippy::needless_range_loop)]
+                for c_idx in 0..3 {
+                    if ct.tree_type == TreeType::DUAL_TREE_LUMA && c_idx > 0 {
+                        break;
+                    } else if ct.tree_type == TreeType::DUAL_TREE_CHROMA && c_idx == 0 {
+                        continue;
+                    }
+                    let (cx, cy) = ct.get_component_pos(c_idx);
+                    let (cw, ch) = ct.get_component_size(c_idx);
+                    let tile_reconst = &mut tile.reconst_pixels.borrow_mut()[c_idx];
+                    for y in cy..cy + ch {
+                        for x in cx..cx + cw {
+                            tile_reconst[y][x] = no_split_reconsts[c_idx][y - cy][x - cx];
+                        }
+                    }
+                }
                 no_split_cost
             } else {
                 let mut ct = ct.lock().unwrap();

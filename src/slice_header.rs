@@ -112,7 +112,7 @@ impl<'a, 'b: 'a> SliceHeader<'a> {
             cb_tc_offset: 0,
             cr_beta_offset: 0,
             cr_tc_offset: 0,
-            dep_quant_used_flag: false,
+            dep_quant_used_flag: true,
             sign_data_hiding_used_flag: false,
             ts_residual_coding_disabled_flag: false,
             slice_header_extension_length: 0,
