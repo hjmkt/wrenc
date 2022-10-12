@@ -1,4 +1,4 @@
 {
-  "default_presets": ["wrenc_fixed_qp", "x265_intra_fixed_qp"],
-  "base_preset": "x265_intra_fixed_qp@preset=placebo"
+  "default_presets": ["wrenc_fixed_qp", "x264_intra_fixed_qp"],
+  "base_preset": "x264_intra_fixed_qp@preset=placebo"
 }

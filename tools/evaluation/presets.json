@@ -9,9 +9,9 @@
       "extra_params": []
     }
   },
-  "x265_intra_fixed_qp": {
-    "target": "x265",
-    "command": "x265_intra_fixed_qp.sh",
+  "x264_intra_fixed_qp": {
+    "target": "x264",
+    "command": "x264_intra_fixed_qp.sh",
     "base": "qp",
     "parameters": {
       "qp": [23, 26, 29, 32, 35, 38, 41, 44],

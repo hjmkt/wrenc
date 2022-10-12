@@ -62,7 +62,7 @@ def encode(params):
             env["max_split_depth"] = f"--max-split-depth {str(param_set['max_split_depth'])}"
         if "extra_params" in param_set.keys():
             env["extra_params"] = f"--extra-params {param_set['extra_params']}"
-    elif preset["target"] == "x265":
+    elif preset["target"] == "x264":
         env["preset"] = str(param_set["preset"])
     start_time = time.time()
     file_bytes = (
