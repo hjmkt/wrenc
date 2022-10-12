@@ -1,7 +1,7 @@
 #!/bin/bash
 
 export TMP=$(mktemp)
-if [ "$target" = "rwc" ]; then
+if [ "$target" = "wrenc" ]; then
     ../../VVCSoftware_VTM/bin/DecoderAppStatic -b $compressed -o ${compressed}.yuv 2>/dev/null > /dev/null
 else
     ffmpeg -i $compressed -f rawvideo -pix_fmt yuv420p ${compressed}.yuv -y 2>/dev/null > /dev/null

@@ -37,7 +37,7 @@ def encode(params):
     description = (
         f"{preset['base']}={base}" if len(prefix) == 0 else f"{prefix},{preset['base']}={base}"
     )
-    target = f"{preset['target']}#{commit_id}" if preset["target"] == "rwc" else preset["target"]
+    target = f"{preset['target']}#{commit_id}" if preset["target"] == "wrenc" else preset["target"]
     title = f"{video_name.split('.')[0]}[{target}@{description}]"
     input = f"../../assets/{video_name}"
     frames = video["frames"]
@@ -47,7 +47,7 @@ def encode(params):
     output_dir = "videos"
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     output = (
-        f"{output_dir}/{title}.vvc" if preset["target"] == "rwc" else f"{output_dir}/{title}.mp4"
+        f"{output_dir}/{title}.vvc" if preset["target"] == "wrenc" else f"{output_dir}/{title}.mp4"
     )
     encode_command = preset["command"]
     env["input"] = input
@@ -57,7 +57,7 @@ def encode(params):
     env["frame_rate"] = str(frame_rate)
     env["qp"] = str(base)
     env["output"] = output
-    if preset["target"] == "rwc":
+    if preset["target"] == "wrenc":
         if "max_split_depth" in param_set.keys():
             env["max_split_depth"] = f"--max-split-depth {str(param_set['max_split_depth'])}"
         if "extra_params" in param_set.keys():
@@ -142,7 +142,7 @@ def evaluate(threads):
             for param_name, param_val in param_set.items():
                 prefix += f",{param_name}={param_val}"
             prefix = prefix[1:]
-            tag = f"{preset_name}#{commit_id}" if preset["target"] == "rwc" else preset_name
+            tag = f"{preset_name}#{commit_id}" if preset["target"] == "wrenc" else preset_name
             if len(prefix) > 1:
                 tag += f"@{prefix}"
             param_result = {"parameters": param_set, "tag": tag, "results": []}
