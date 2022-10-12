@@ -3,7 +3,7 @@
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 echo $SCRIPT_DIR
 pushd $SCRIPT_DIR/../tools/evaluation
-python ./evaluate_mp.py --threads 1
+python ./evaluate_mp.py --threads 8
 pushd ../dashboard
 node_modules/.bin/webpack
 yes | cp public/bundle.js ../../docs/
