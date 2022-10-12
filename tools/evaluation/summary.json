@@ -1,25 +1,25 @@
 {
-    "date": "2022-10-12 14:11:05 +0900",
-    "commit_id": "81c5420",
-    "commit_message": "'Add dependent quantization'",
+    "date": "2022-10-12 17:50:50 +0900",
+    "commit_id": "fcc4c7b",
+    "commit_message": "'Update project name'",
     "results": [
         {
-            "preset": "rwc_fixed_qp",
+            "preset": "wrenc_fixed_qp",
             "results": [
                 {
                     "parameters": {
                         "max_split_depth": 3
                     },
-                    "tag": "rwc_fixed_qp#81c5420@max_split_depth=3",
+                    "tag": "wrenc_fixed_qp#fcc4c7b@max_split_depth=3",
                     "results": [
                         {
                             "video": "bus_352x288_30fps_30fr.mp4",
                             "results": [
                                 {
-                                    "title": "bus_352x288_30fps_30fr[rwc#81c5420@max_split_depth=3,qp=20]",
+                                    "title": "bus_352x288_30fps_30fr[wrenc#fcc4c7b@max_split_depth=3,qp=20]",
                                     "qp": 20,
                                     "bytes": 842315,
-                                    "duration": 110.68353128433228,
+                                    "duration": 109.29712295532227,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -404,10 +404,10 @@
                                     }
                                 },
                                 {
-                                    "title": "bus_352x288_30fps_30fr[rwc#81c5420@max_split_depth=3,qp=23]",
+                                    "title": "bus_352x288_30fps_30fr[wrenc#fcc4c7b@max_split_depth=3,qp=23]",
                                     "qp": 23,
                                     "bytes": 682234,
-                                    "duration": 107.59073805809021,
+                                    "duration": 106.14907693862915,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -792,10 +792,10 @@
                                     }
                                 },
                                 {
-                                    "title": "bus_352x288_30fps_30fr[rwc#81c5420@max_split_depth=3,qp=26]",
+                                    "title": "bus_352x288_30fps_30fr[wrenc#fcc4c7b@max_split_depth=3,qp=26]",
                                     "qp": 26,
                                     "bytes": 536003,
-                                    "duration": 105.42545461654663,
+                                    "duration": 103.49065494537354,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -1180,10 +1180,10 @@
                                     }
                                 },
                                 {
-                                    "title": "bus_352x288_30fps_30fr[rwc#81c5420@max_split_depth=3,qp=29]",
+                                    "title": "bus_352x288_30fps_30fr[wrenc#fcc4c7b@max_split_depth=3,qp=29]",
                                     "qp": 29,
                                     "bytes": 413163,
-                                    "duration": 102.4820704460144,
+                                    "duration": 100.49866509437561,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -1568,10 +1568,10 @@
                                     }
                                 },
                                 {
-                                    "title": "bus_352x288_30fps_30fr[rwc#81c5420@max_split_depth=3,qp=32]",
+                                    "title": "bus_352x288_30fps_30fr[wrenc#fcc4c7b@max_split_depth=3,qp=32]",
                                     "qp": 32,
                                     "bytes": 308281,
-                                    "duration": 100.20298171043396,
+                                    "duration": 97.70826530456543,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -1956,10 +1956,10 @@
                                     }
                                 },
                                 {
-                                    "title": "bus_352x288_30fps_30fr[rwc#81c5420@max_split_depth=3,qp=35]",
+                                    "title": "bus_352x288_30fps_30fr[wrenc#fcc4c7b@max_split_depth=3,qp=35]",
                                     "qp": 35,
                                     "bytes": 226792,
-                                    "duration": 97.10110831260681,
+                                    "duration": 94.924143075943,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -2344,10 +2344,10 @@
                                     }
                                 },
                                 {
-                                    "title": "bus_352x288_30fps_30fr[rwc#81c5420@max_split_depth=3,qp=38]",
+                                    "title": "bus_352x288_30fps_30fr[wrenc#fcc4c7b@max_split_depth=3,qp=38]",
                                     "qp": 38,
                                     "bytes": 162584,
-                                    "duration": 94.95984315872192,
+                                    "duration": 92.56715798377991,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -2732,10 +2732,10 @@
                                     }
                                 },
                                 {
-                                    "title": "bus_352x288_30fps_30fr[rwc#81c5420@max_split_depth=3,qp=41]",
+                                    "title": "bus_352x288_30fps_30fr[wrenc#fcc4c7b@max_split_depth=3,qp=41]",
                                     "qp": 41,
                                     "bytes": 116135,
-                                    "duration": 93.47774934768677,
+                                    "duration": 91.39551401138306,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -3125,10 +3125,10 @@
                             "video": "mobile_352x288_30fps_30fr.mp4",
                             "results": [
                                 {
-                                    "title": "mobile_352x288_30fps_30fr[rwc#81c5420@max_split_depth=3,qp=20]",
+                                    "title": "mobile_352x288_30fps_30fr[wrenc#fcc4c7b@max_split_depth=3,qp=20]",
                                     "qp": 20,
                                     "bytes": 1218472,
-                                    "duration": 116.42278146743774,
+                                    "duration": 114.29264950752258,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -3513,10 +3513,10 @@
                                     }
                                 },
                                 {
-                                    "title": "mobile_352x288_30fps_30fr[rwc#81c5420@max_split_depth=3,qp=23]",
+                                    "title": "mobile_352x288_30fps_30fr[wrenc#fcc4c7b@max_split_depth=3,qp=23]",
                                     "qp": 23,
                                     "bytes": 1021736,
-                                    "duration": 114.58401870727539,
+                                    "duration": 112.00690245628357,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -3901,10 +3901,10 @@
                                     }
                                 },
                                 {
-                                    "title": "mobile_352x288_30fps_30fr[rwc#81c5420@max_split_depth=3,qp=26]",
+                                    "title": "mobile_352x288_30fps_30fr[wrenc#fcc4c7b@max_split_depth=3,qp=26]",
                                     "qp": 26,
                                     "bytes": 837210,
-                                    "duration": 112.33400344848633,
+                                    "duration": 111.0087206363678,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -4289,10 +4289,10 @@
                                     }
                                 },
                                 {
-                                    "title": "mobile_352x288_30fps_30fr[rwc#81c5420@max_split_depth=3,qp=29]",
+                                    "title": "mobile_352x288_30fps_30fr[wrenc#fcc4c7b@max_split_depth=3,qp=29]",
                                     "qp": 29,
                                     "bytes": 678815,
-                                    "duration": 109.48788046836853,
+                                    "duration": 108.74870896339417,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -4677,10 +4677,10 @@
                                     }
                                 },
                                 {
-                                    "title": "mobile_352x288_30fps_30fr[rwc#81c5420@max_split_depth=3,qp=32]",
+                                    "title": "mobile_352x288_30fps_30fr[wrenc#fcc4c7b@max_split_depth=3,qp=32]",
                                     "qp": 32,
                                     "bytes": 534917,
-                                    "duration": 107.1024603843689,
+                                    "duration": 106.38589072227478,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -5065,10 +5065,10 @@
                                     }
                                 },
                                 {
-                                    "title": "mobile_352x288_30fps_30fr[rwc#81c5420@max_split_depth=3,qp=35]",
+                                    "title": "mobile_352x288_30fps_30fr[wrenc#fcc4c7b@max_split_depth=3,qp=35]",
                                     "qp": 35,
                                     "bytes": 415753,
-                                    "duration": 104.79151058197021,
+                                    "duration": 104.7294430732727,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -5453,10 +5453,10 @@
                                     }
                                 },
                                 {
-                                    "title": "mobile_352x288_30fps_30fr[rwc#81c5420@max_split_depth=3,qp=38]",
+                                    "title": "mobile_352x288_30fps_30fr[wrenc#fcc4c7b@max_split_depth=3,qp=38]",
                                     "qp": 38,
                                     "bytes": 315520,
-                                    "duration": 102.68851852416992,
+                                    "duration": 102.30778551101685,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -5841,10 +5841,10 @@
                                     }
                                 },
                                 {
-                                    "title": "mobile_352x288_30fps_30fr[rwc#81c5420@max_split_depth=3,qp=41]",
+                                    "title": "mobile_352x288_30fps_30fr[wrenc#fcc4c7b@max_split_depth=3,qp=41]",
                                     "qp": 41,
                                     "bytes": 236858,
-                                    "duration": 99.93652963638306,
+                                    "duration": 99.01742553710938,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -6250,7 +6250,7 @@
                                     "title": "bus_352x288_30fps_30fr[x264@preset=placebo,qp=23]",
                                     "qp": 23,
                                     "bytes": 921389,
-                                    "duration": 0.177994966506958,
+                                    "duration": 0.16584277153015137,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -6638,7 +6638,7 @@
                                     "title": "bus_352x288_30fps_30fr[x264@preset=placebo,qp=26]",
                                     "qp": 26,
                                     "bytes": 747945,
-                                    "duration": 0.15883445739746094,
+                                    "duration": 0.1609354019165039,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -7026,7 +7026,7 @@
                                     "title": "bus_352x288_30fps_30fr[x264@preset=placebo,qp=29]",
                                     "qp": 29,
                                     "bytes": 590587,
-                                    "duration": 0.1514742374420166,
+                                    "duration": 0.14593243598937988,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -7414,7 +7414,7 @@
                                     "title": "bus_352x288_30fps_30fr[x264@preset=placebo,qp=32]",
                                     "qp": 32,
                                     "bytes": 458677,
-                                    "duration": 0.1326291561126709,
+                                    "duration": 0.13655686378479004,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -7802,7 +7802,7 @@
                                     "title": "bus_352x288_30fps_30fr[x264@preset=placebo,qp=35]",
                                     "qp": 35,
                                     "bytes": 348482,
-                                    "duration": 0.12092256546020508,
+                                    "duration": 0.12033343315124512,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -8190,7 +8190,7 @@
                                     "title": "bus_352x288_30fps_30fr[x264@preset=placebo,qp=38]",
                                     "qp": 38,
                                     "bytes": 258030,
-                                    "duration": 0.10602807998657227,
+                                    "duration": 0.09834527969360352,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -8578,7 +8578,7 @@
                                     "title": "bus_352x288_30fps_30fr[x264@preset=placebo,qp=41]",
                                     "qp": 41,
                                     "bytes": 186221,
-                                    "duration": 0.0935220718383789,
+                                    "duration": 0.08381485939025879,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -8966,7 +8966,7 @@
                                     "title": "bus_352x288_30fps_30fr[x264@preset=placebo,qp=44]",
                                     "qp": 44,
                                     "bytes": 132321,
-                                    "duration": 0.08401107788085938,
+                                    "duration": 0.08200883865356445,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -9359,7 +9359,7 @@
                                     "title": "mobile_352x288_30fps_30fr[x264@preset=placebo,qp=23]",
                                     "qp": 23,
                                     "bytes": 1354806,
-                                    "duration": 0.21298980712890625,
+                                    "duration": 0.2186596393585205,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -9747,7 +9747,7 @@
                                     "title": "mobile_352x288_30fps_30fr[x264@preset=placebo,qp=26]",
                                     "qp": 26,
                                     "bytes": 1130167,
-                                    "duration": 0.2178785800933838,
+                                    "duration": 0.21271491050720215,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -10135,7 +10135,7 @@
                                     "title": "mobile_352x288_30fps_30fr[x264@preset=placebo,qp=29]",
                                     "qp": 29,
                                     "bytes": 919624,
-                                    "duration": 0.19560861587524414,
+                                    "duration": 0.17551493644714355,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -10523,7 +10523,7 @@
                                     "title": "mobile_352x288_30fps_30fr[x264@preset=placebo,qp=32]",
                                     "qp": 32,
                                     "bytes": 739227,
-                                    "duration": 0.1638045310974121,
+                                    "duration": 0.1805558204650879,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -10911,7 +10911,7 @@
                                     "title": "mobile_352x288_30fps_30fr[x264@preset=placebo,qp=35]",
                                     "qp": 35,
                                     "bytes": 588803,
-                                    "duration": 0.1600053310394287,
+                                    "duration": 0.15071535110473633,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -11299,7 +11299,7 @@
                                     "title": "mobile_352x288_30fps_30fr[x264@preset=placebo,qp=38]",
                                     "qp": 38,
                                     "bytes": 452045,
-                                    "duration": 0.14316868782043457,
+                                    "duration": 0.12990355491638184,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -11687,7 +11687,7 @@
                                     "title": "mobile_352x288_30fps_30fr[x264@preset=placebo,qp=41]",
                                     "qp": 41,
                                     "bytes": 343123,
-                                    "duration": 0.12549829483032227,
+                                    "duration": 0.12748241424560547,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {
@@ -12075,7 +12075,7 @@
                                     "title": "mobile_352x288_30fps_30fr[x264@preset=placebo,qp=44]",
                                     "qp": 44,
                                     "bytes": 259099,
-                                    "duration": 0.10772442817687988,
+                                    "duration": 0.10393500328063965,
                                     "metrics": {
                                         "PSNR": {
                                             "summary": {

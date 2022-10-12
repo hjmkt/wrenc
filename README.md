@@ -1,14 +1,14 @@
-# rwc ![workflow](https://github.com/hjmkt/rwc/actions/workflows/test.yml/badge.svg)
+# wrenc ![workflow](https://github.com/hjmkt/wrenc/actions/workflows/test.yml/badge.svg)
 
-rwc is an experimental H.266/VVC encoder implemented in Rust.
+wrenc is an experimental H.266/VVC encoder implemented in Rust.
 
-The latest evaluation dashboard can be found [here](https://hjmkt.github.io/rwc).
+The latest evaluation dashboard can be found [here](https://hjmkt.github.io/wrenc).
 
 # Requirements
 
 - Rust 1.66.0-nightly or later
 - Python 3.10 for running evaluation scripts
-- Node.js & npm & yarn for building an evaluation dashboard
+- Node.js & yarn for building an evaluation dashboard
 
 # Supported features
 
@@ -47,13 +47,13 @@ The latest evaluation dashboard can be found [here](https://hjmkt.github.io/rwc)
 # Build
 
 ```bash
-# building rwc for debug
+# building wrenc for debug
 cargo build
 
-# building rwc for development
+# building wrenc for development
 cargo build --profile dev
 
-# building rwc for release
+# building wrenc for release
 cargo build --release
 
 # building an evaluation dashboard
@@ -64,19 +64,19 @@ node_modules/.bin/webpack
 
 # Usage
 
-## Run rwc
+## Run wrenc
 
 ```bash
-# running rwc for a file input
-cargo run --release --bin rwc -- -i /path/to/video.yuv --input-size {WIDTH}x{HEIGHT} --num-pictures NUM_OF_FRAMES -o /path/to/output.vvc --output-size {WIDTH}x{HEIGHT} [--qp QP] [--max-split-depth MAX_SPLIT_DEPTH] [--reconst /path/to/reconstructed.yuv] [--extra-params KEY1=VAL1[,KEY2=VAL2,...]]
+# running wrenc for a file input
+cargo run --release --bin wrenc -- -i /path/to/video.yuv --input-size {WIDTH}x{HEIGHT} --num-pictures NUM_OF_FRAMES -o /path/to/output.vvc --output-size {WIDTH}x{HEIGHT} [--qp QP] [--max-split-depth MAX_SPLIT_DEPTH] [--reconst /path/to/reconstructed.yuv] [--extra-params KEY1=VAL1[,KEY2=VAL2,...]]
 
-# running rwc for a pipe input
-ffmpeg -i /path/to/input.mp4 -f rawvideo -pix_fmt yuv420p -s {WIDTH}x{HEIGHT} - | cargo run --release --bin rwc -- -i - --input-size {WIDTH}x{HEIGHT} --num-pictures NUM_OF_FRAMES -o /path/to/output.vvc --output-size {WIDTH}x{HEIGHT} [--qp QP] [--max-split-depth MAX_SPLIT_DEPTH] [--reconst /path/to/reconstructed.yuv] [--extra-params KEY1=VAL1[,KEY2=VAL2,...]]
+# running wrenc for a pipe input
+ffmpeg -i /path/to/input.mp4 -f rawvideo -pix_fmt yuv420p -s {WIDTH}x{HEIGHT} - | cargo run --release --bin wrenc -- -i - --input-size {WIDTH}x{HEIGHT} --num-pictures NUM_OF_FRAMES -o /path/to/output.vvc --output-size {WIDTH}x{HEIGHT} [--qp QP] [--max-split-depth MAX_SPLIT_DEPTH] [--reconst /path/to/reconstructed.yuv] [--extra-params KEY1=VAL1[,KEY2=VAL2,...]]
 ```
 
 ## Evaluation
 
-The following command will run rwc on test videos with some presets of parameters specified in tools/evaluation/config.json.
+The following command will run wrenc on test videos with some presets of parameters specified in tools/evaluation/config.json.
 The result will be generated as summary.json.
 
 ```

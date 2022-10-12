@@ -1,5 +1,5 @@
 [package]
-name = "rwc"
+name = "wrenc"
 version = "0.1.0"
 authors = ["Hajime Kato <hjmkt3126@gmail.com>"]
 edition = "2021"
