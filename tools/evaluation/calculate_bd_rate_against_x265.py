@@ -64,7 +64,7 @@ def calculate_bd_rate(ex_params):
         presets = json.load(f)
 
     wrenc_preset = presets["wrenc_fixed_qp"]
-    x264_preset = presets["x264_intra_fixed_qp"]
+    x265_preset = presets["x265_intra_fixed_qp"]
     qps = [20, 23, 26, 29, 32, 35, 38, 41]
     pid = os.getpid()
 
@@ -72,7 +72,7 @@ def calculate_bd_rate(ex_params):
     for video_name, video in videos.items():
         video_results[video_name] = {
             "wrenc": {"bytes": [], "psnr": []},
-            "x264": {"bytes": [], "psnr": []},
+            "x265": {"bytes": [], "psnr": []},
         }
 
     wrenc_bd_psnrs = []
@@ -85,7 +85,7 @@ def calculate_bd_rate(ex_params):
         output_dir = f"videos_{pid}"
         Path(output_dir).mkdir(parents=True, exist_ok=True)
         wrenc_encode_command = wrenc_preset["command"]
-        x264_encode_command = x264_preset["command"]
+        x265_encode_command = x265_preset["command"]
         metric_command = metrics["PSNR"]["command"]
         env = os.environ.copy()
         env["input"] = input
@@ -123,22 +123,22 @@ def calculate_bd_rate(ex_params):
                 encode,
                 map(
                     lambda qp: (
-                        "x264",
+                        "x265",
                         input,
                         output_dir,
                         qp,
                         frames,
-                        x264_encode_command,
+                        x265_encode_command,
                         metric_command,
-                        f"x264_{qp}.mp4",
+                        f"x265_{qp}.mp4",
                         env.copy(),
                     ),
                     list(map(lambda qp: qp + 3, qps)),
                 ),
             )
             for (file_bytes, psnr) in results:
-                video_results[video_name]["x264"]["bytes"].append(file_bytes)
-                video_results[video_name]["x264"]["psnr"].append(psnr)
+                video_results[video_name]["x265"]["bytes"].append(file_bytes)
+                video_results[video_name]["x265"]["psnr"].append(psnr)
 
         wrenc_samples = list(
             zip(
@@ -147,16 +147,16 @@ def calculate_bd_rate(ex_params):
         )
         wrenc_samples.sort(key=lambda x: x[0])
 
-        x264_samples = list(
+        x265_samples = list(
             zip(
-                video_results[video_name]["x264"]["psnr"],
-                video_results[video_name]["x264"]["bytes"],
+                video_results[video_name]["x265"]["psnr"],
+                video_results[video_name]["x265"]["bytes"],
             )
         )
-        x264_samples.sort(key=lambda x: x[0])
+        x265_samples.sort(key=lambda x: x[0])
 
-        min_psnr = max(wrenc_samples[0][0], x264_samples[0][0])
-        max_psnr = min(wrenc_samples[-1][0], x264_samples[-1][0])
+        min_psnr = max(wrenc_samples[0][0], x265_samples[0][0])
+        max_psnr = min(wrenc_samples[-1][0], x265_samples[-1][0])
         d = max_psnr - min_psnr
         n = 100
         points = list(
@@ -178,21 +178,21 @@ def calculate_bd_rate(ex_params):
         for p in points:
             wrenc_rates.append(f(p))
 
-        xs = list(map(lambda s: s[0], x264_samples))
+        xs = list(map(lambda s: s[0], x265_samples))
         ys = list(
             map(
                 lambda s: s[1],
-                x264_samples,
+                x265_samples,
             )
         )
         f = interpolate.interp1d(xs, ys, kind="cubic")
-        x264_rates = []
+        x265_rates = []
         for p in points:
-            x264_rates.append(f(p))
+            x265_rates.append(f(p))
 
         s = 0
-        for wrenc_rate, x264_rate in zip(wrenc_rates, x264_rates):
-            s += wrenc_rate / x264_rate
+        for wrenc_rate, x265_rate in zip(wrenc_rates, x265_rates):
+            s += wrenc_rate / x265_rate
         wrenc_bd_psnr = s / n
         wrenc_bd_psnrs.append(wrenc_bd_psnr)
 
