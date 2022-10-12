@@ -820,7 +820,7 @@ impl IntraPredictor {
                             let m = _mm256_set_epi16(
                                 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
                             );
-                            let lrs = _mm256_set1_epi16(lrs as i16);
+                            let lrs = _mm256_set1_epi16(lrs);
                             let hy = _mm256_mullo_epi16(m, lrs);
                             let rx = _mm256_lddqu_si256(rx.as_ptr() as *const _);
                             let hy = _mm256_add_epi16(hy, rx);
@@ -1086,8 +1086,8 @@ impl IntraPredictor {
             // TODO SIMD
             let pred_v = &mut self.pred_v;
             let pred_h = &mut self.pred_h;
-            let ars_r = ars[tw] as i16;
-            let lrs_b = lrs[th] as i16;
+            let ars_r = ars[tw];
+            let lrs_b = lrs[th];
             let tw_m1 = tw - 1;
             let rx: Vec<i16> = (0..tw as i16).map(|x| (x + 1) * ars_r).collect();
             for y in 0..th {
@@ -1311,7 +1311,7 @@ impl IntraPredictor {
         } else {
             (n_cb_w, n_cb_h)
         };
-        let wh_ratio = (nw.ilog2() as isize - nh.ilog2() as isize).abs() as isize;
+        let wh_ratio = (nw.ilog2() as isize - nh.ilog2() as isize).abs();
         if nw != nh {
             if nw > nh
                 && intra_pred_mode >= 2
@@ -1814,9 +1814,9 @@ impl IntraPredictor {
                     for x in 0..tw {
                         let sx = (ectx.sub_width_c * x) as isize + ox;
                         let sy = y as isize + oy;
-                        p_ds_y[y][x] = (p_y_xm3_ym3[sy as usize][(sx as isize - 1) as usize]
-                            + p_y_xm3_ym3[sy as usize][(sx as isize) as usize] * 2
-                            + p_y_xm3_ym3[sy as usize][(sx as isize + 1) as usize]
+                        p_ds_y[y][x] = (p_y_xm3_ym3[sy as usize][(sx - 1) as usize]
+                            + p_y_xm3_ym3[sy as usize][sx as usize] * 2
+                            + p_y_xm3_ym3[sy as usize][(sx + 1) as usize]
                             + 2)
                             >> 2;
                     }
@@ -1826,11 +1826,11 @@ impl IntraPredictor {
                     for x in 0..tw {
                         let sx = (ectx.sub_width_c * x) as isize + ox;
                         let sy = (ectx.sub_height_c * y) as isize + oy;
-                        p_ds_y[y][x] = (p_y_xm3_ym3[(sy - 1) as usize][(sx as isize) as usize]
-                            + p_y_xm3_ym3[sy as usize][(sx as isize - 1) as usize]
-                            + p_y_xm3_ym3[sy as usize][(sx as isize) as usize] * 4
-                            + p_y_xm3_ym3[sy as usize][(sx as isize + 1) as usize]
-                            + p_y_xm3_ym3[(sy + 1) as usize][(sx as isize) as usize]
+                        p_ds_y[y][x] = (p_y_xm3_ym3[(sy - 1) as usize][sx as usize]
+                            + p_y_xm3_ym3[sy as usize][(sx - 1) as usize]
+                            + p_y_xm3_ym3[sy as usize][sx as usize] * 4
+                            + p_y_xm3_ym3[sy as usize][(sx + 1) as usize]
+                            + p_y_xm3_ym3[(sy + 1) as usize][sx as usize]
                             + 4)
                             >> 3;
                     }
@@ -1840,12 +1840,12 @@ impl IntraPredictor {
                     for x in 0..tw {
                         let sx = (ectx.sub_width_c * x) as isize + ox;
                         let sy = (ectx.sub_height_c * y) as isize + oy;
-                        p_ds_y[y][x] = (p_y_xm3_ym3[sy as usize][(sx as isize - 1) as usize]
-                            + p_y_xm3_ym3[(sy + 1) as usize][(sx as isize - 1) as usize]
-                            + p_y_xm3_ym3[sy as usize][(sx as isize) as usize] * 2
-                            + p_y_xm3_ym3[(sy + 1) as usize][(sx as isize) as usize] * 2
-                            + p_y_xm3_ym3[sy as usize][(sx as isize + 1) as usize]
-                            + p_y_xm3_ym3[(sy + 1) as usize][(sx as isize + 1) as usize]
+                        p_ds_y[y][x] = (p_y_xm3_ym3[sy as usize][(sx - 1) as usize]
+                            + p_y_xm3_ym3[(sy + 1) as usize][(sx - 1) as usize]
+                            + p_y_xm3_ym3[sy as usize][sx as usize] * 2
+                            + p_y_xm3_ym3[(sy + 1) as usize][sx as usize] * 2
+                            + p_y_xm3_ym3[sy as usize][(sx + 1) as usize]
+                            + p_y_xm3_ym3[(sy + 1) as usize][(sx + 1) as usize]
                             + 4)
                             >> 3;
                     }
@@ -1864,7 +1864,7 @@ impl IntraPredictor {
             let mut p_sel_c = vec![0isize; cnt_t + cnt_l];
             if num_samp_t > 0 {
                 for idx in 0..cnt_t {
-                    p_sel_c[idx] = tile_reconst_pixels[c_idx][(ty - 1) as usize]
+                    p_sel_c[idx] = tile_reconst_pixels[c_idx][ty - 1]
                         [(tx as isize + pick_pos_t[idx] as isize) as usize]
                         as isize;
                 }
@@ -1905,8 +1905,8 @@ impl IntraPredictor {
             if num_samp_l > 0 {
                 for idx in cnt_t..cnt_t + cnt_l {
                     p_sel_c[idx] = tile_reconst_pixels[c_idx]
-                        [ty + (pick_pos_l[idx - cnt_t] as isize) as usize]
-                        [(tx - 1) as usize] as isize;
+                        [ty + (pick_pos_l[idx - cnt_t] as isize) as usize][tx - 1]
+                        as isize;
                 }
                 for idx in cnt_t..cnt_t + cnt_l {
                     let y = pick_pos_l[idx - cnt_t];
@@ -1997,7 +1997,7 @@ impl IntraPredictor {
                 } else {
                     3 + x - y
                 };
-                a = if 3 + x - y < 1 {
+                a = if (3 + x as isize - y as isize) < 1 {
                     if a < 0 {
                         -15
                     } else if a > 0 {

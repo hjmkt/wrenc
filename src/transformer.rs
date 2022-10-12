@@ -2012,26 +2012,26 @@ impl Transformer {
         let wh_ratio = (nw.ilog2() as isize - nh.ilog2() as isize).unsigned_abs();
         if nw != nh {
             pred_mode_intra = if nw > nh
-                && pred_mode_intra as isize >= 2
-                && (pred_mode_intra as isize)
+                && pred_mode_intra >= 2
+                && pred_mode_intra
                     < (if wh_ratio > 1 {
                         8 + 2 * wh_ratio as isize
                     } else {
                         8
                     }) {
-                pred_mode_intra as isize + 65
+                pred_mode_intra + 65
             } else if nh > nw
-                && (pred_mode_intra as isize) < 66
-                && pred_mode_intra as isize
+                && pred_mode_intra < 66
+                && pred_mode_intra
                     > (if wh_ratio > 1 {
                         60 - 2 * wh_ratio as isize
                     } else {
                         60
                     })
             {
-                pred_mode_intra as isize - 67
+                pred_mode_intra - 67
             } else {
-                pred_mode_intra as isize
+                pred_mode_intra
             };
         }
         pred_mode_intra
@@ -2132,8 +2132,7 @@ impl Transformer {
                                     for i in 0..non_zero_w {
                                         let t = &tx[i];
                                         h[i] =
-                                            (0..4).map(|x| t[x] as i32 * r[x] as i32).sum::<i32>()
-                                                as i32;
+                                            (0..4).map(|x| t[x] as i32 * r[x] as i32).sum::<i32>();
                                     }
                                 }
                             }

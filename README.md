@@ -29,7 +29,7 @@ The latest evaluation dashboard can be found [here](https://hjmkt.github.io/rwc)
 |     Transform size     | 64x64 or 32x32 or 16x16 or 8x8 or 4x4 |           -            |
 |         LFNST          |                  No                   |           -            |
 |      Loop filter       |                  No                   |           -            |
-| Dependent quantization |                  No                   |           -            |
+| Dependent quantization |                  Yes                   |           -            |
 
 ## Encoder-specific features
 

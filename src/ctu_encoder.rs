@@ -48,9 +48,9 @@ impl<'a> CtuEncoder<'a> {
                 ctu.ct[0].clone()
             };
             {
-                let mut block_splitter = BlockSplitter::new();
                 let ectx = &self.encoder_context;
                 let mut ectx = ectx.lock().unwrap();
+                let mut block_splitter = BlockSplitter::new(&ectx);
                 block_splitter.split_ct(&mut ct, ectx.max_split_depth, sh, &mut ectx);
             }
         }
@@ -86,7 +86,7 @@ impl<'a> CtuEncoder<'a> {
                             debug_eprintln!("ctu alf_luma_prev_filter_idx ");
                             self.coder.encode_cabac_ctu(
                                 bins,
-                                ctu.alf.luma_prev_filter_idx as usize,
+                                ctu.alf.luma_prev_filter_idx,
                                 CabacContext::AlfLumaPrevFilterIdx,
                                 sh,
                                 &mut ectx,
@@ -95,7 +95,7 @@ impl<'a> CtuEncoder<'a> {
                             debug_eprintln!("ctu alf_luma_fixed_filter_idx ");
                             self.coder.encode_cabac_ctu(
                                 bins,
-                                ctu.alf.luma_fixed_filter_idx as usize,
+                                ctu.alf.luma_fixed_filter_idx,
                                 CabacContext::AlfLumaFixedFilterIdx,
                                 sh,
                                 &mut ectx,
@@ -152,7 +152,7 @@ impl<'a> CtuEncoder<'a> {
                 debug_eprintln!("ctu alf_ctb_cc_cb_idc_bits ");
                 self.coder.encode_cabac_ctu(
                     bins,
-                    ctu.alf.ctb_cc_cb_idc as usize,
+                    ctu.alf.ctb_cc_cb_idc,
                     CabacContext::AlfCtbCcCbIdc,
                     sh,
                     &mut ectx,
@@ -162,7 +162,7 @@ impl<'a> CtuEncoder<'a> {
                 debug_eprintln!("ctu alf_ctb_cc_cr_idc_bits ");
                 self.coder.encode_cabac_ctu(
                     bins,
-                    ctu.alf.ctb_cc_cr_idc as usize,
+                    ctu.alf.ctb_cc_cr_idc,
                     CabacContext::AlfCtbCcCrIdc,
                     sh,
                     &mut ectx,
@@ -255,9 +255,6 @@ impl<'a> CtuEncoder<'a> {
                 mtt_split_cu_vertical_flag,
                 mtt_split_cu_binary_flag,
                 mode_type,
-                //prev_mode_type,
-                //tree_type,
-                //prev_tree_type,
                 non_inter_flag,
                 split_mode,
             ) = {
@@ -279,9 +276,6 @@ impl<'a> CtuEncoder<'a> {
                     ct.mtt_split_cu_vertical_flag(),
                     ct.mtt_split_cu_binary_flag(),
                     ct.mode_type,
-                    //ct.prev_mode_type(),
-                    //ct.tree_type,
-                    //ct.prev_tree_type(0),
                     ct.non_inter_flag,
                     ct.split_mode,
                 )
@@ -421,15 +415,6 @@ impl<'a> CtuEncoder<'a> {
                 } else {
                     //assert_eq!(mode_type, prev_mode_type);
                 };
-                //println!("mode_type={mode_type:?}");
-                //assert_eq!(
-                //tree_type,
-                //if mode_type == ModeType::MODE_TYPE_INTRA {
-                //TreeType::DUAL_TREE_LUMA
-                //} else {
-                //prev_tree_type
-                //}
-                //);
             }
         }
         // TODO?
@@ -438,13 +423,7 @@ impl<'a> CtuEncoder<'a> {
             ct.cts.clone()
         };
         if !cts.is_empty() {
-            //let mut idx = 0;
             for ct in cts.iter() {
-                //if idx == 4 {
-                //let ct = ct.lock().unwrap();
-                //eprintln!("x={}, y={}, w={}, h={}", ct.x, ct.y, ct.width, ct.height);
-                //}
-                //idx += 1;
                 self.encode_coding_tree(bins, ctu.clone(), ct.clone(), sh);
             }
         } else {
@@ -728,7 +707,7 @@ impl<'a> CtuEncoder<'a> {
                                 debug_eprintln!("cu intra_mip_mode ");
                                 self.coder.encode_cabac_cu(
                                     bins,
-                                    intra_mip_mode as usize,
+                                    intra_mip_mode,
                                     CabacContext::IntraMipMode,
                                     cu,
                                     sh,
@@ -739,7 +718,7 @@ impl<'a> CtuEncoder<'a> {
                                     debug_eprintln!("cu intra_luma_ref_idx ");
                                     self.coder.encode_cabac_cu(
                                         bins,
-                                        intra_luma_ref_idx as usize,
+                                        intra_luma_ref_idx,
                                         CabacContext::IntraLumaRefIdx,
                                         cu,
                                         sh,
@@ -778,7 +757,6 @@ impl<'a> CtuEncoder<'a> {
                                     intra_luma_mpm_idx,
                                     intra_luma_mpm_remainder,
                                 ) = cu.get_intra_luma_mpm_flag_and_idx_and_remainder();
-                                //println!("{intra_luma_mpm_flag}, {intra_luma_mpm_idx}, {intra_luma_mpm_remainder}");
                                 if intra_luma_ref_idx == 0 {
                                     debug_eprintln!("cu intra_luma_mpm_flag ");
                                     self.coder.encode_cabac_cu(
@@ -806,7 +784,7 @@ impl<'a> CtuEncoder<'a> {
                                         debug_eprintln!("cu intra_luma_mpm_idx ");
                                         self.coder.encode_cabac_cu(
                                             bins,
-                                            intra_luma_mpm_idx as usize,
+                                            intra_luma_mpm_idx,
                                             CabacContext::IntraLumaMpmIdx,
                                             cu,
                                             sh,
@@ -817,7 +795,7 @@ impl<'a> CtuEncoder<'a> {
                                     debug_eprintln!("cu intra_luma_mpm_remainer ");
                                     self.coder.encode_cabac_cu(
                                         bins,
-                                        intra_luma_mpm_remainder as usize,
+                                        intra_luma_mpm_remainder,
                                         CabacContext::IntraLumaMpmRemainder,
                                         cu,
                                         sh,
@@ -883,11 +861,11 @@ impl<'a> CtuEncoder<'a> {
                             } else {
                                 debug_eprintln!(
                                     "cu intra_chroma_pred_mode {}",
-                                    intra_chroma_pred_mode as usize
+                                    intra_chroma_pred_mode
                                 );
                                 self.coder.encode_cabac_cu(
                                     bins,
-                                    intra_chroma_pred_mode as usize,
+                                    intra_chroma_pred_mode,
                                     CabacContext::IntraChromaPredMode,
                                     cu,
                                     sh,
@@ -930,7 +908,7 @@ impl<'a> CtuEncoder<'a> {
                         debug_eprintln!("cu amvr_precision_idx ");
                         self.coder.encode_cabac_cu(
                             bins,
-                            amvr_precision_idx as usize,
+                            amvr_precision_idx,
                             CabacContext::AmvrPrecisionIdx,
                             cu,
                             sh,
@@ -942,7 +920,7 @@ impl<'a> CtuEncoder<'a> {
                         debug_eprintln!("cu inter_pred_idc ");
                         self.coder.encode_cabac_cu(
                             bins,
-                            inter_pred_idc as usize,
+                            inter_pred_idc,
                             CabacContext::InterPredIdc,
                             cu,
                             sh,
@@ -993,7 +971,7 @@ impl<'a> CtuEncoder<'a> {
                             debug_eprintln!("cu ref_idx_l0 ");
                             self.coder.encode_cabac_cu(
                                 bins,
-                                ref_idx[0] as usize,
+                                ref_idx[0],
                                 CabacContext::RefIdxL0,
                                 cu,
                                 sh,
@@ -1024,7 +1002,7 @@ impl<'a> CtuEncoder<'a> {
                             debug_eprintln!("cu ref_idx_l1 ");
                             self.coder.encode_cabac_cu(
                                 bins,
-                                ref_idx[1] as usize,
+                                ref_idx[1],
                                 CabacContext::RefIdxL1,
                                 cu,
                                 sh,
@@ -1081,7 +1059,7 @@ impl<'a> CtuEncoder<'a> {
                             debug_eprintln!("cu amvr_precision_idx ");
                             self.coder.encode_cabac_cu(
                                 bins,
-                                amvr_precision_idx as usize,
+                                amvr_precision_idx,
                                 CabacContext::AmvrPrecisionIdx,
                                 cu,
                                 sh,
@@ -1128,7 +1106,7 @@ impl<'a> CtuEncoder<'a> {
                         debug_eprintln!("cu bcw_idx ");
                         self.coder.encode_cabac_cu(
                             bins,
-                            bcw_idx as usize,
+                            bcw_idx,
                             CabacContext::BcwIdx,
                             cu,
                             sh,
@@ -1304,7 +1282,7 @@ impl<'a> CtuEncoder<'a> {
                     debug_eprintln!("cu lfnst_idx ");
                     self.coder.encode_cabac_cu(
                         bins,
-                        lfnst_idx as usize,
+                        lfnst_idx,
                         CabacContext::LfnstIdx,
                         cu,
                         sh,
@@ -1331,7 +1309,7 @@ impl<'a> CtuEncoder<'a> {
                     debug_eprintln!("cu mts_idx ");
                     self.coder.encode_cabac_cu(
                         bins,
-                        mts_idx as usize,
+                        mts_idx,
                         CabacContext::MtsIdx,
                         cu,
                         sh,
@@ -1384,7 +1362,7 @@ impl<'a> CtuEncoder<'a> {
                     debug_eprintln!("mvd abs_mvd ");
                     self.coder.encode_cabac_cu(
                         bins,
-                        mvd.abs_mvd[i] as usize - 2,
+                        mvd.abs_mvd[i] - 2,
                         CabacContext::AbsMvd,
                         cu,
                         sh,
@@ -1448,7 +1426,7 @@ impl<'a> CtuEncoder<'a> {
             let ectx = &self.encoder_context;
             let ectx = &mut ectx.lock().unwrap();
             let mut transformer = Transformer::new();
-            let mut quantizer = Quantizer::new();
+            let mut quantizer = Quantizer::new(ectx);
             for c_idx in 0..3 {
                 if tu.is_component_active(c_idx) {
                     if pred_mode_flag {
@@ -1680,7 +1658,7 @@ impl<'a> CtuEncoder<'a> {
                     debug_eprintln!("tu cu_chroma_qp_offset_idx ");
                     self.coder.encode_cabac_tu(
                         bins,
-                        cu_chroma_qp_offset_idx as usize,
+                        cu_chroma_qp_offset_idx,
                         0,
                         CabacContext::CuChromaQpOffsetIdx,
                         tu,
@@ -1897,7 +1875,7 @@ impl<'a> CtuEncoder<'a> {
             debug_eprintln!("res last_sig_coeff_x_prefix ");
             self.coder.encode_cabac_last_sig_coeff_x_prefix(
                 bins,
-                last_sig_coeff_x_prefix as usize,
+                last_sig_coeff_x_prefix,
                 tu,
                 c_idx,
                 sh,
@@ -1907,7 +1885,7 @@ impl<'a> CtuEncoder<'a> {
             debug_eprintln!("res last_sig_coeff_y_prefix ");
             self.coder.encode_cabac_last_sig_coeff_y_prefix(
                 bins,
-                last_sig_coeff_y_prefix as usize,
+                last_sig_coeff_y_prefix,
                 tu,
                 c_idx,
                 sh,
@@ -1917,7 +1895,7 @@ impl<'a> CtuEncoder<'a> {
             debug_eprintln!("res last_sig_coeff_x_suffix ");
             self.coder.encode_cabac_for_last_sig_coeff_x_suffix(
                 bins,
-                last_sig_coeff_x_suffix as usize,
+                last_sig_coeff_x_suffix,
                 last_sig_coeff_x_prefix,
                 CabacContext::LastSigCoeffXSuffix,
                 sh,
@@ -1927,7 +1905,7 @@ impl<'a> CtuEncoder<'a> {
             debug_eprintln!("res last_sig_coeff_y_suffix ");
             self.coder.encode_cabac_for_last_sig_coeff_y_suffix(
                 bins,
-                last_sig_coeff_y_suffix as usize,
+                last_sig_coeff_y_suffix,
                 last_sig_coeff_y_prefix,
                 CabacContext::LastSigCoeffYSuffix,
                 sh,
@@ -1980,6 +1958,7 @@ impl<'a> CtuEncoder<'a> {
         let last_sig_coeff_pos = { tu.get_last_sig_coeff_pos(c_idx) };
         let sb_order = &DIAG_SCAN_ORDER[log2_tb_width - log2_sb_w][log2_tb_height - log2_sb_h];
         for i in (0..=last_subblock).rev() {
+            let start_q_state_sb = ectx.q_state;
             (x_s, y_s) = sb_order[i];
             //let mut first_abs_remainder = true;
             let mut abs_levels = vec![0; num_sb_coeff];
@@ -1992,12 +1971,17 @@ impl<'a> CtuEncoder<'a> {
                 for n in (0..num_sb_coeff).rev() {
                     x_c = x_offset + order[n].0;
                     y_c = y_offset + order[n].1;
+                    if quantized_transformed_coeffs[y_c][x_c] != 0 {
+                        assert_eq!(
+                            quantized_transformed_coeffs[y_c][x_c].unsigned_abs() as usize & 1,
+                            (q_state > 1) as usize
+                        );
+                    }
                     abs_levels[n] = (quantized_transformed_coeffs[y_c][x_c].unsigned_abs()
                         as usize
                         + (q_state > 1) as usize)
                         / 2;
-                    q_state = ectx.q_state_trans_table[q_state]
-                        [quantized_transformed_coeffs[y_c][x_c].unsigned_abs() as usize & 1];
+                    q_state = ectx.q_state_trans_table[q_state][abs_levels[n] & 1];
                 }
             } else {
                 let quantized_transformed_coeffs = &tu.quantized_transformed_coeffs[c_idx];
@@ -2008,7 +1992,6 @@ impl<'a> CtuEncoder<'a> {
                 }
             }
             let mut pass1_abs_levels = abs_levels.clone();
-            let start_q_state_sb = ectx.q_state;
             let mut infer_sb_dc_sig_coeff_flag = false;
             let sb_coded_flag = { tu.get_sb_coded_flag(c_idx, x_s, y_s) || (x_s, y_s) == (0, 0) };
             if i < last_subblock && i > 0 {
@@ -2147,6 +2130,7 @@ impl<'a> CtuEncoder<'a> {
                 ectx.abs_level_pass1[y_c][x_c] = abs_level_pass1;
                 pass1_abs_levels[n] = abs_levels[n] - abs_level_pass1;
                 if sh.dep_quant_used_flag {
+                    assert_eq!(abs_level_pass1 & 1, abs_levels[n] & 1);
                     ectx.q_state = ectx.q_state_trans_table[ectx.q_state][abs_level_pass1 & 1];
                 }
                 first_pos_mode1 = n as isize - 1;
@@ -2169,7 +2153,7 @@ impl<'a> CtuEncoder<'a> {
                     debug_eprintln!("res abs_remainder ");
                     self.coder.encode_cabac_for_abs_remainder(
                         bins,
-                        abs_remainder as usize,
+                        abs_remainder,
                         x_c,
                         y_c,
                         //first_abs_remainder,
@@ -2181,22 +2165,31 @@ impl<'a> CtuEncoder<'a> {
                         &mut ectx,
                     );
                     //first_abs_remainder = false;
-                    abs_levels[n] += 2 * abs_remainder;
                 }
                 ectx.abs_level[y_c][x_c] = ectx.abs_level_pass1[y_c][x_c] + 2 * abs_remainder;
+                assert_eq!(ectx.abs_level[y_c][x_c], abs_levels[n]);
             }
             for n in (0..=first_pos_mode1).rev() {
                 let n = n as usize;
                 x_c = x_offset + order[n].0;
                 y_c = y_offset + order[n].1;
+                ectx.abs_level[y_c][x_c] = abs_levels[n];
                 if sb_coded_flag {
                     debug_eprintln!("res dec_abs_level ");
-                    let dec_abs_level =
-                        { tu.get_dec_abs_level(c_idx, x_c, y_c, ectx.q_state, &ectx) };
+                    let dec_abs_level = {
+                        tu.get_dec_abs_level(
+                            abs_levels[n] as i16,
+                            c_idx,
+                            x_c,
+                            y_c,
+                            ectx.q_state,
+                            &ectx,
+                        )
+                    };
                     debug_eprintln!("dec_abs_level={}", dec_abs_level);
                     self.coder.encode_cabac_for_dec_abs_level(
                         bins,
-                        dec_abs_level as usize,
+                        dec_abs_level,
                         x_c,
                         y_c,
                         n,
@@ -2206,8 +2199,6 @@ impl<'a> CtuEncoder<'a> {
                         sh,
                         &mut ectx,
                     );
-                    ectx.abs_level[y_c][x_c] =
-                        tu.quantized_transformed_coeffs[c_idx][y_c][x_c].unsigned_abs() as usize;
                 }
                 if ectx.abs_level[y_c][x_c] > 0 {
                     if last_sig_scan_pos_sb == -1 {
@@ -2216,11 +2207,7 @@ impl<'a> CtuEncoder<'a> {
                     first_sig_scan_pos_sb = n;
                 }
                 if sh.dep_quant_used_flag {
-                    ectx.q_state = ectx.q_state_trans_table[ectx.q_state][tu
-                        .quantized_transformed_coeffs[c_idx][y_c][x_c]
-                        .unsigned_abs()
-                        as usize
-                        & 1];
+                    ectx.q_state = ectx.q_state_trans_table[ectx.q_state][abs_levels[n] & 1];
                 }
             }
             let sign_hidden_flag = sh.sign_data_hiding_used_flag
@@ -2228,6 +2215,7 @@ impl<'a> CtuEncoder<'a> {
             for n in (0..num_sb_coeff).rev() {
                 x_c = x_offset + order[n].0;
                 y_c = y_offset + order[n].1;
+                assert_eq!(ectx.abs_level[y_c][x_c], abs_levels[n]);
                 let coeff_sign_flag = { tu.quantized_transformed_coeffs[c_idx][y_c][x_c] < 0 };
                 let abs_level = abs_levels[n];
                 if abs_level > 0 && (!sign_hidden_flag || n != first_sig_scan_pos_sb) {
@@ -2249,16 +2237,31 @@ impl<'a> CtuEncoder<'a> {
                     debug_eprintln!("coeff={}", tu.quantized_transformed_coeffs[c_idx][y_c][x_c]);
                 }
             }
+            for n in (0..num_sb_coeff).rev() {
+                if abs_levels[n] > 0 {
+                    debug_eprintln!(
+                        "abs={} @ {:?}, {:?}, c={}",
+                        abs_levels[n],
+                        tu.get_component_pos(c_idx),
+                        tu.get_component_size(c_idx),
+                        c_idx
+                    );
+                }
+            }
             if sh.dep_quant_used_flag {
                 ectx.q_state = start_q_state_sb;
                 for n in (0..num_sb_coeff).rev() {
                     x_c = x_offset + order[n].0;
                     y_c = y_offset + order[n].1;
-                    ectx.q_state = ectx.q_state_trans_table[ectx.q_state][tu
-                        .quantized_transformed_coeffs[c_idx][y_c][x_c]
-                        .unsigned_abs()
-                        as usize
-                        & 1];
+                    if abs_levels[n] != 0 {
+                        let t = 2 * abs_levels[n] - (ectx.q_state > 1) as usize;
+                        assert_eq!(
+                            t,
+                            tu.quantized_transformed_coeffs[c_idx][y_c][x_c].unsigned_abs()
+                                as usize
+                        );
+                    }
+                    ectx.q_state = ectx.q_state_trans_table[ectx.q_state][abs_levels[n] & 1];
                 }
             }
         }
@@ -2653,7 +2656,7 @@ impl<'a> CtuEncoder<'a> {
                         debug_eprintln!("sao alf_sao_type_idx_luma ");
                         self.coder.encode_cabac_ctu(
                             bins,
-                            sao.type_idx_luma as usize,
+                            sao.type_idx_luma,
                             CabacContext::AlfSaoTypeIdxLuma,
                             sh,
                             &mut ectx,
@@ -2662,7 +2665,7 @@ impl<'a> CtuEncoder<'a> {
                         debug_eprintln!("sao alf_sao_type_idx_chroma ");
                         self.coder.encode_cabac_ctu(
                             bins,
-                            sao.type_idx_chroma as usize,
+                            sao.type_idx_chroma,
                             CabacContext::AlfSaoTypeIdxChroma,
                             sh,
                             &mut ectx,
@@ -2673,7 +2676,7 @@ impl<'a> CtuEncoder<'a> {
                             debug_eprintln!("sao offset_abs ");
                             self.coder.encode_cabac_ctu(
                                 bins,
-                                sao.offset_abs[c_idx][rx][ry][i] as usize,
+                                sao.offset_abs[c_idx][rx][ry][i],
                                 CabacContext::SaoOffsetAbs,
                                 sh,
                                 &mut ectx,
@@ -2695,7 +2698,7 @@ impl<'a> CtuEncoder<'a> {
                             debug_eprintln!("sao band_position ");
                             self.coder.encode_cabac_ctu(
                                 bins,
-                                sao.band_position[c_idx][rx][ry] as usize,
+                                sao.band_position[c_idx][rx][ry],
                                 CabacContext::SaoBandPosition,
                                 sh,
                                 &mut ectx,
@@ -2704,7 +2707,7 @@ impl<'a> CtuEncoder<'a> {
                             debug_eprintln!("sao eo_class_luma ");
                             self.coder.encode_cabac_ctu(
                                 bins,
-                                sao.eo_class_luma as usize,
+                                sao.eo_class_luma,
                                 CabacContext::SaoEoClassLuma,
                                 sh,
                                 &mut ectx,
@@ -2713,7 +2716,7 @@ impl<'a> CtuEncoder<'a> {
                             debug_eprintln!("sao eo_class_chroma ");
                             self.coder.encode_cabac_ctu(
                                 bins,
-                                sao.eo_class_chroma as usize,
+                                sao.eo_class_chroma,
                                 CabacContext::SaoEoClassChroma,
                                 sh,
                                 &mut ectx,
