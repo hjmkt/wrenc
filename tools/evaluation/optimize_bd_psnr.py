@@ -1,4 +1,4 @@
-import calculate_bd_rate_against_x264 as bd_rate_x264
+import calculate_bd_rate_against_x265 as bd_rate_x265
 import optuna
 
 
@@ -28,7 +28,7 @@ def objective(trial):
 
     ex_params = f"p0={p0},p1={p1},p2={p2},p3={p3},l0={l0},l1={l1},l2={l2},l3={l3},l4={l4},l5={l5},l6={l6},l7={l7},l8={l8},l9={l9},l10={l10},l11={l11},q0={q0},q1={q1},q2={q2}"
 
-    loss = bd_rate_x264.calculate_bd_rate(ex_params)
+    loss = bd_rate_x265.calculate_bd_rate(ex_params)
 
     return loss
 
