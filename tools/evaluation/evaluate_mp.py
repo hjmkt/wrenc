@@ -214,6 +214,8 @@ def evaluate(threads):
             s = 0
             for i, p in enumerate(points):
                 s += f(p) / base_bd_psnrs[i]
+                if i%10==0 and f(p)!=base_bd_psnrs[i]:
+                    print("rate", f(p) / base_bd_psnrs[i])
             s /= n
             bd_psnr[video][tag] = s
     bd_psnr_summary = {}

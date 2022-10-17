@@ -1434,7 +1434,7 @@ impl<'a> CtuEncoder<'a> {
                         ectx.enable_print = false;
                     }
                     transformer.transform(tu, c_idx, sh.sps, sh.ph.as_ref().unwrap(), ectx);
-                    quantizer.quantize(tu, c_idx, sh, ectx);
+                    quantizer.quantize(tu, c_idx, true, sh, ectx);
                     quantizer.dequantize(tu, c_idx, sh, ectx);
                     transformer.inverse_transform(tu, c_idx, sh.sps, sh.ph.as_ref().unwrap(), ectx);
                     let tile = tu.get_tile();

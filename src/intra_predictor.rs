@@ -486,257 +486,273 @@ impl IntraPredictor {
             let neg_w_ty = 64 - w_ty;
             let tpp = &mut tile_pred_pixels[ty + y][tx..];
             // FIXME something is wrong with SIMD
-            //if is_x86_feature_detected!("avx2") && false {
-            //use core::arch::x86_64::*;
-            //match tw {
-            //4 => {
-            //for x in 0..4 {
-            //let pred = ((ref_ly[x] * w_l[x]
-            //+ ref_ty[x] * w_ty
-            //+ (neg_w_ty - w_l[x]) * tpp[x] as i16
-            //+ 32)
-            //>> 6)
-            //.clamp(0, 255) as u8;
-            //tpp[x] = pred;
-            //}
-            //}
-            //8 => unsafe {
-            //let ref_ly = _mm_lddqu_si128(ref_ly.as_ptr() as *const _);
-            //let w_l = _mm_lddqu_si128(w_l.as_ptr() as *const _);
-            //let ml = _mm_mullo_epi16(ref_ly, w_l);
-            //let ref_ty = _mm_lddqu_si128(ref_ty.as_ptr() as *const _);
-            //let w_ty = _mm_set1_epi16(w_ty as i16);
-            //let mt = _mm_mullo_epi16(ref_ty, w_ty);
-            //let m = _mm_add_epi16(ml, mt);
-            //let neg_w_ty = _mm_set1_epi16(neg_w_ty as i16);
-            //let d = _mm_sub_epi16(neg_w_ty, w_l);
-            //let tppv: i64 = *(tpp.as_ptr() as *const _);
-            //let tppv = _mm_set_epi64x(0, tppv);
-            //let tppv = _mm_cvtepu8_epi16(tppv);
-            //let d = _mm_mullo_epi16(d, tppv);
-            //let s = _mm_add_epi16(m, d);
-            //let d = _mm_set1_epi16(32);
-            //let s = _mm_add_epi16(s, d);
-            //let shift = _mm_set_epi64x(0, 6);
-            //let s = _mm_srl_epi16(s, shift);
-            //let ub = _mm_set1_epi16(255);
-            //let s = _mm_min_epi16(s, ub);
-            //let shuffle =
-            //_mm_set_epi8(0, 0, 0, 0, 0, 0, 0, 0, 14, 12, 10, 8, 6, 4, 2, 0);
-            //let s = _mm_shuffle_epi8(s, shuffle);
-            //let s = _mm_extract_epi64(s, 0);
-            //*(tpp.as_mut_ptr() as *mut i64) = s;
-            //},
-            //16 => unsafe {
-            //let ref_lyv = _mm256_lddqu_si256(ref_ly.as_ptr() as *const _);
-            //let w_lv = _mm256_lddqu_si256(w_l.as_ptr() as *const _);
-            //let ml = _mm256_mullo_epi16(ref_lyv, w_lv);
-            //let ref_tyv = _mm256_lddqu_si256(ref_ty.as_ptr() as *const _);
-            //let w_ty = _mm256_set1_epi16(w_ty as i16);
-            //let mt = _mm256_mullo_epi16(ref_tyv, w_ty);
-            //let m = _mm256_add_epi16(ml, mt);
-            //let neg_w_ty = _mm256_set1_epi16(neg_w_ty as i16);
-            //let d = _mm256_sub_epi16(neg_w_ty, w_lv);
-            //let tppv = _mm_lddqu_si128(tpp.as_ptr() as *const _);
-            //let tppv = _mm256_cvtepu8_epi16(tppv);
-            //let d = _mm256_mullo_epi16(d, tppv);
-            //let s = _mm256_add_epi16(m, d);
-            //let d = _mm256_set1_epi16(32);
-            //let s = _mm256_add_epi16(s, d);
-            //let shift = _mm_set_epi64x(0, 6);
-            //let s = _mm256_srl_epi16(s, shift);
-            //let ub = _mm256_set1_epi16(255);
-            //let s = _mm256_min_epi16(s, ub);
-            //let shuffle = _mm256_set_epi8(
-            //0, 0, 0, 0, 0, 0, 0, 0, 14, 12, 10, 8, 6, 4, 2, 0, 0, 0, 0, 0, 0, 0, 0,
-            //0, 14, 12, 10, 8, 6, 4, 2, 0,
-            //);
-            //let s = _mm256_shuffle_epi8(s, shuffle);
-            //let s0 = _mm256_extract_epi64(s, 0);
-            //let s1 = _mm256_extract_epi64(s, 2);
-            //*(tpp.as_mut_ptr() as *mut i64) = s0;
-            //*(tpp[8..].as_mut_ptr() as *mut i64) = s1;
-            //},
-            //32 => unsafe {
-            //let ref_lyv = _mm256_lddqu_si256(ref_ly.as_ptr() as *const _);
-            //let w_lv = _mm256_lddqu_si256(w_l.as_ptr() as *const _);
-            //let ml = _mm256_mullo_epi16(ref_lyv, w_lv);
-            //let ref_tyv = _mm256_lddqu_si256(ref_ty.as_ptr() as *const _);
-            //let w_ty = _mm256_set1_epi16(w_ty as i16);
-            //let mt = _mm256_mullo_epi16(ref_tyv, w_ty);
-            //let m = _mm256_add_epi16(ml, mt);
-            //let neg_w_ty = _mm256_set1_epi16(neg_w_ty as i16);
-            //let d = _mm256_sub_epi16(neg_w_ty, w_lv);
-            //let tppv = _mm_lddqu_si128(tpp.as_ptr() as *const _);
-            //let tppv = _mm256_cvtepu8_epi16(tppv);
-            //let d = _mm256_mullo_epi16(d, tppv);
-            //let s = _mm256_add_epi16(m, d);
-            //let d = _mm256_set1_epi16(32);
-            //let s = _mm256_add_epi16(s, d);
-            //let shift = _mm_set_epi64x(0, 6);
-            //let s = _mm256_srl_epi16(s, shift);
-            //let ub = _mm256_set1_epi16(255);
-            //let s = _mm256_min_epi16(s, ub);
-            //let shuffle = _mm256_set_epi8(
-            //0, 0, 0, 0, 0, 0, 0, 0, 14, 12, 10, 8, 6, 4, 2, 0, 0, 0, 0, 0, 0, 0, 0,
-            //0, 14, 12, 10, 8, 6, 4, 2, 0,
-            //);
-            //let s = _mm256_shuffle_epi8(s, shuffle);
-            //let s0 = _mm256_extract_epi64(s, 0);
-            //let s1 = _mm256_extract_epi64(s, 2);
-            //*(tpp.as_mut_ptr() as *mut i64) = s0;
-            //*(tpp[8..].as_mut_ptr() as *mut i64) = s1;
+            if is_x86_feature_detected!("avx2") {
+                use core::arch::x86_64::*;
+                match tw {
+                    4 => {
+                        for x in 0..4 {
+                            let pred = ((ref_ly[x] * w_l[x]
+                                + ref_ty[x] * w_ty
+                                + (neg_w_ty - w_l[x]) * tpp[x] as i16
+                                + 32)
+                                >> 6)
+                                .clamp(0, 255) as u8;
+                            tpp[x] = pred;
+                        }
+                    }
+                    8 => unsafe {
+                        let ref_ly = _mm_lddqu_si128(ref_ly.as_ptr() as *const _);
+                        let w_l = _mm_lddqu_si128(w_l.as_ptr() as *const _);
+                        let ml = _mm_mullo_epi16(ref_ly, w_l);
+                        let ref_ty = _mm_lddqu_si128(ref_ty.as_ptr() as *const _);
+                        let w_ty = _mm_set1_epi16(w_ty);
+                        let mt = _mm_mullo_epi16(ref_ty, w_ty);
+                        let m = _mm_add_epi16(ml, mt);
+                        let neg_w_ty = _mm_set1_epi16(neg_w_ty);
+                        let d = _mm_sub_epi16(neg_w_ty, w_l);
+                        let tppv: i64 = *(tpp.as_ptr() as *const _);
+                        let tppv = _mm_set_epi64x(0, tppv);
+                        let tppv = _mm_cvtepu8_epi16(tppv);
+                        let d = _mm_mullo_epi16(d, tppv);
+                        let s = _mm_add_epi16(m, d);
+                        let d = _mm_set1_epi16(32);
+                        let s = _mm_add_epi16(s, d);
+                        let shift = _mm_set_epi64x(0, 6);
+                        let s = _mm_sra_epi16(s, shift);
+                        let ub = _mm_set1_epi16(255);
+                        let s = _mm_min_epi16(s, ub);
+                        let lb = _mm_set1_epi16(0);
+                        let s = _mm_max_epi16(s, lb);
+                        let shuffle =
+                            _mm_set_epi8(0, 0, 0, 0, 0, 0, 0, 0, 14, 12, 10, 8, 6, 4, 2, 0);
+                        let s = _mm_shuffle_epi8(s, shuffle);
+                        let s = _mm_extract_epi64(s, 0);
+                        *(tpp.as_mut_ptr() as *mut i64) = s;
+                    },
+                    16 => unsafe {
+                        let ref_lyv = _mm256_lddqu_si256(ref_ly.as_ptr() as *const _);
+                        let w_lv = _mm256_lddqu_si256(w_l.as_ptr() as *const _);
+                        let ml = _mm256_mullo_epi16(ref_lyv, w_lv);
+                        let ref_tyv = _mm256_lddqu_si256(ref_ty.as_ptr() as *const _);
+                        let w_ty = _mm256_set1_epi16(w_ty);
+                        let mt = _mm256_mullo_epi16(ref_tyv, w_ty);
+                        let m = _mm256_add_epi16(ml, mt);
+                        let neg_w_ty = _mm256_set1_epi16(neg_w_ty);
+                        let d = _mm256_sub_epi16(neg_w_ty, w_lv);
+                        let tppv = _mm_lddqu_si128(tpp.as_ptr() as *const _);
+                        let tppv = _mm256_cvtepu8_epi16(tppv);
+                        let d = _mm256_mullo_epi16(d, tppv);
+                        let s = _mm256_add_epi16(m, d);
+                        let d = _mm256_set1_epi16(32);
+                        let s = _mm256_add_epi16(s, d);
+                        let shift = _mm_set_epi64x(0, 6);
+                        let s = _mm256_sra_epi16(s, shift);
+                        let ub = _mm256_set1_epi16(255);
+                        let s = _mm256_min_epi16(s, ub);
+                        let lb = _mm256_set1_epi16(0);
+                        let s = _mm256_max_epi16(s, lb);
+                        let shuffle = _mm256_set_epi8(
+                            0, 0, 0, 0, 0, 0, 0, 0, 14, 12, 10, 8, 6, 4, 2, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 14, 12, 10, 8, 6, 4, 2, 0,
+                        );
+                        let s = _mm256_shuffle_epi8(s, shuffle);
+                        let s0 = _mm256_extract_epi64(s, 0);
+                        let s1 = _mm256_extract_epi64(s, 2);
+                        *(tpp.as_mut_ptr() as *mut i64) = s0;
+                        *(tpp[8..].as_mut_ptr() as *mut i64) = s1;
+                    },
+                    32 => unsafe {
+                        let ref_lyv = _mm256_lddqu_si256(ref_ly.as_ptr() as *const _);
+                        let w_lv = _mm256_lddqu_si256(w_l.as_ptr() as *const _);
+                        let ml = _mm256_mullo_epi16(ref_lyv, w_lv);
+                        let ref_tyv = _mm256_lddqu_si256(ref_ty.as_ptr() as *const _);
+                        let w_ty = _mm256_set1_epi16(w_ty);
+                        let mt = _mm256_mullo_epi16(ref_tyv, w_ty);
+                        let m = _mm256_add_epi16(ml, mt);
+                        let neg_w_ty = _mm256_set1_epi16(neg_w_ty);
+                        let d = _mm256_sub_epi16(neg_w_ty, w_lv);
+                        let tppv = _mm_lddqu_si128(tpp.as_ptr() as *const _);
+                        let tppv = _mm256_cvtepu8_epi16(tppv);
+                        let d = _mm256_mullo_epi16(d, tppv);
+                        let s = _mm256_add_epi16(m, d);
+                        let d = _mm256_set1_epi16(32);
+                        let s = _mm256_add_epi16(s, d);
+                        let shift = _mm_set_epi64x(0, 6);
+                        let s = _mm256_sra_epi16(s, shift);
+                        let ub = _mm256_set1_epi16(255);
+                        let s = _mm256_min_epi16(s, ub);
+                        let lb = _mm256_set1_epi16(0);
+                        let s = _mm256_max_epi16(s, lb);
+                        let shuffle = _mm256_set_epi8(
+                            0, 0, 0, 0, 0, 0, 0, 0, 14, 12, 10, 8, 6, 4, 2, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 14, 12, 10, 8, 6, 4, 2, 0,
+                        );
+                        let s = _mm256_shuffle_epi8(s, shuffle);
+                        let s0 = _mm256_extract_epi64(s, 0);
+                        let s1 = _mm256_extract_epi64(s, 2);
+                        *(tpp.as_mut_ptr() as *mut i64) = s0;
+                        *(tpp[8..].as_mut_ptr() as *mut i64) = s1;
 
-            //let ref_lyv = _mm256_lddqu_si256(ref_ly[16..].as_ptr() as *const _);
-            //let w_lv = _mm256_lddqu_si256(w_l[16..].as_ptr() as *const _);
-            //let ml = _mm256_mullo_epi16(ref_lyv, w_lv);
-            //let ref_tyv = _mm256_lddqu_si256(ref_ty[16..].as_ptr() as *const _);
-            //let mt = _mm256_mullo_epi16(ref_tyv, w_ty);
-            //let m = _mm256_add_epi16(ml, mt);
-            //let d = _mm256_sub_epi16(neg_w_ty, w_lv);
-            //let tppv = _mm_lddqu_si128(tpp[16..].as_ptr() as *const _);
-            //let tppv = _mm256_cvtepu8_epi16(tppv);
-            //let d = _mm256_mullo_epi16(d, tppv);
-            //let s = _mm256_add_epi16(m, d);
-            //let d = _mm256_set1_epi16(32);
-            //let s = _mm256_add_epi16(s, d);
-            //let shift = _mm_set_epi64x(0, 6);
-            //let s = _mm256_srl_epi16(s, shift);
-            //let ub = _mm256_set1_epi16(255);
-            //let s = _mm256_min_epi16(s, ub);
-            //let shuffle = _mm256_set_epi8(
-            //0, 0, 0, 0, 0, 0, 0, 0, 14, 12, 10, 8, 6, 4, 2, 0, 0, 0, 0, 0, 0, 0, 0,
-            //0, 14, 12, 10, 8, 6, 4, 2, 0,
-            //);
-            //let s = _mm256_shuffle_epi8(s, shuffle);
-            //let s0 = _mm256_extract_epi64(s, 0);
-            //let s1 = _mm256_extract_epi64(s, 2);
-            //*(tpp[16..].as_mut_ptr() as *mut i64) = s0;
-            //*(tpp[24..].as_mut_ptr() as *mut i64) = s1;
-            //},
-            //_ => unsafe {
-            //let ref_lyv = _mm256_lddqu_si256(ref_ly.as_ptr() as *const _);
-            //let w_lv = _mm256_lddqu_si256(w_l.as_ptr() as *const _);
-            //let ml = _mm256_mullo_epi16(ref_lyv, w_lv);
-            //let ref_tyv = _mm256_lddqu_si256(ref_ty.as_ptr() as *const _);
-            //let w_ty = _mm256_set1_epi16(w_ty as i16);
-            //let mt = _mm256_mullo_epi16(ref_tyv, w_ty);
-            //let m = _mm256_add_epi16(ml, mt);
-            //let neg_w_ty = _mm256_set1_epi16(neg_w_ty as i16);
-            //let d = _mm256_sub_epi16(neg_w_ty, w_lv);
-            //let tppv = _mm_lddqu_si128(tpp.as_ptr() as *const _);
-            //let tppv = _mm256_cvtepu8_epi16(tppv);
-            //let d = _mm256_mullo_epi16(d, tppv);
-            //let s = _mm256_add_epi16(m, d);
-            //let d = _mm256_set1_epi16(32);
-            //let s = _mm256_add_epi16(s, d);
-            //let shift = _mm_set_epi64x(0, 6);
-            //let s = _mm256_srl_epi16(s, shift);
-            //let ub = _mm256_set1_epi16(255);
-            //let s = _mm256_min_epi16(s, ub);
-            //let shuffle = _mm256_set_epi8(
-            //0, 0, 0, 0, 0, 0, 0, 0, 14, 12, 10, 8, 6, 4, 2, 0, 0, 0, 0, 0, 0, 0, 0,
-            //0, 14, 12, 10, 8, 6, 4, 2, 0,
-            //);
-            //let s = _mm256_shuffle_epi8(s, shuffle);
-            //let s0 = _mm256_extract_epi64(s, 0);
-            //let s1 = _mm256_extract_epi64(s, 2);
-            //*(tpp.as_mut_ptr() as *mut i64) = s0;
-            //*(tpp[8..].as_mut_ptr() as *mut i64) = s1;
+                        let ref_lyv = _mm256_lddqu_si256(ref_ly[16..].as_ptr() as *const _);
+                        let w_lv = _mm256_lddqu_si256(w_l[16..].as_ptr() as *const _);
+                        let ml = _mm256_mullo_epi16(ref_lyv, w_lv);
+                        let ref_tyv = _mm256_lddqu_si256(ref_ty[16..].as_ptr() as *const _);
+                        let mt = _mm256_mullo_epi16(ref_tyv, w_ty);
+                        let m = _mm256_add_epi16(ml, mt);
+                        let d = _mm256_sub_epi16(neg_w_ty, w_lv);
+                        let tppv = _mm_lddqu_si128(tpp[16..].as_ptr() as *const _);
+                        let tppv = _mm256_cvtepu8_epi16(tppv);
+                        let d = _mm256_mullo_epi16(d, tppv);
+                        let s = _mm256_add_epi16(m, d);
+                        let d = _mm256_set1_epi16(32);
+                        let s = _mm256_add_epi16(s, d);
+                        let shift = _mm_set_epi64x(0, 6);
+                        let s = _mm256_sra_epi16(s, shift);
+                        let ub = _mm256_set1_epi16(255);
+                        let s = _mm256_min_epi16(s, ub);
+                        let lb = _mm256_set1_epi16(0);
+                        let s = _mm256_max_epi16(s, lb);
+                        let shuffle = _mm256_set_epi8(
+                            0, 0, 0, 0, 0, 0, 0, 0, 14, 12, 10, 8, 6, 4, 2, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 14, 12, 10, 8, 6, 4, 2, 0,
+                        );
+                        let s = _mm256_shuffle_epi8(s, shuffle);
+                        let s0 = _mm256_extract_epi64(s, 0);
+                        let s1 = _mm256_extract_epi64(s, 2);
+                        *(tpp[16..].as_mut_ptr() as *mut i64) = s0;
+                        *(tpp[24..].as_mut_ptr() as *mut i64) = s1;
+                    },
+                    _ => unsafe {
+                        let ref_lyv = _mm256_lddqu_si256(ref_ly.as_ptr() as *const _);
+                        let w_lv = _mm256_lddqu_si256(w_l.as_ptr() as *const _);
+                        let ml = _mm256_mullo_epi16(ref_lyv, w_lv);
+                        let ref_tyv = _mm256_lddqu_si256(ref_ty.as_ptr() as *const _);
+                        let w_ty = _mm256_set1_epi16(w_ty);
+                        let mt = _mm256_mullo_epi16(ref_tyv, w_ty);
+                        let m = _mm256_add_epi16(ml, mt);
+                        let neg_w_ty = _mm256_set1_epi16(neg_w_ty);
+                        let d = _mm256_sub_epi16(neg_w_ty, w_lv);
+                        let tppv = _mm_lddqu_si128(tpp.as_ptr() as *const _);
+                        let tppv = _mm256_cvtepu8_epi16(tppv);
+                        let d = _mm256_mullo_epi16(d, tppv);
+                        let s = _mm256_add_epi16(m, d);
+                        let d = _mm256_set1_epi16(32);
+                        let s = _mm256_add_epi16(s, d);
+                        let shift = _mm_set_epi64x(0, 6);
+                        let s = _mm256_sra_epi16(s, shift);
+                        let ub = _mm256_set1_epi16(255);
+                        let s = _mm256_min_epi16(s, ub);
+                        let lb = _mm256_set1_epi16(0);
+                        let s = _mm256_max_epi16(s, lb);
+                        let shuffle = _mm256_set_epi8(
+                            0, 0, 0, 0, 0, 0, 0, 0, 14, 12, 10, 8, 6, 4, 2, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 14, 12, 10, 8, 6, 4, 2, 0,
+                        );
+                        let s = _mm256_shuffle_epi8(s, shuffle);
+                        let s0 = _mm256_extract_epi64(s, 0);
+                        let s1 = _mm256_extract_epi64(s, 2);
+                        *(tpp.as_mut_ptr() as *mut i64) = s0;
+                        *(tpp[8..].as_mut_ptr() as *mut i64) = s1;
 
-            //let ref_lyv = _mm256_lddqu_si256(ref_ly[16..].as_ptr() as *const _);
-            //let w_lv = _mm256_lddqu_si256(w_l[16..].as_ptr() as *const _);
-            //let ml = _mm256_mullo_epi16(ref_lyv, w_lv);
-            //let ref_tyv = _mm256_lddqu_si256(ref_ty[16..].as_ptr() as *const _);
-            //let mt = _mm256_mullo_epi16(ref_tyv, w_ty);
-            //let m = _mm256_add_epi16(ml, mt);
-            //let d = _mm256_sub_epi16(neg_w_ty, w_lv);
-            //let tppv = _mm_lddqu_si128(tpp[16..].as_ptr() as *const _);
-            //let tppv = _mm256_cvtepu8_epi16(tppv);
-            //let d = _mm256_mullo_epi16(d, tppv);
-            //let s = _mm256_add_epi16(m, d);
-            //let d = _mm256_set1_epi16(32);
-            //let s = _mm256_add_epi16(s, d);
-            //let shift = _mm_set_epi64x(0, 6);
-            //let s = _mm256_srl_epi16(s, shift);
-            //let ub = _mm256_set1_epi16(255);
-            //let s = _mm256_min_epi16(s, ub);
-            //let shuffle = _mm256_set_epi8(
-            //0, 0, 0, 0, 0, 0, 0, 0, 14, 12, 10, 8, 6, 4, 2, 0, 0, 0, 0, 0, 0, 0, 0,
-            //0, 14, 12, 10, 8, 6, 4, 2, 0,
-            //);
-            //let s = _mm256_shuffle_epi8(s, shuffle);
-            //let s0 = _mm256_extract_epi64(s, 0);
-            //let s1 = _mm256_extract_epi64(s, 2);
-            //*(tpp[16..].as_mut_ptr() as *mut i64) = s0;
-            //*(tpp[24..].as_mut_ptr() as *mut i64) = s1;
+                        let ref_lyv = _mm256_lddqu_si256(ref_ly[16..].as_ptr() as *const _);
+                        let w_lv = _mm256_lddqu_si256(w_l[16..].as_ptr() as *const _);
+                        let ml = _mm256_mullo_epi16(ref_lyv, w_lv);
+                        let ref_tyv = _mm256_lddqu_si256(ref_ty[16..].as_ptr() as *const _);
+                        let mt = _mm256_mullo_epi16(ref_tyv, w_ty);
+                        let m = _mm256_add_epi16(ml, mt);
+                        let d = _mm256_sub_epi16(neg_w_ty, w_lv);
+                        let tppv = _mm_lddqu_si128(tpp[16..].as_ptr() as *const _);
+                        let tppv = _mm256_cvtepu8_epi16(tppv);
+                        let d = _mm256_mullo_epi16(d, tppv);
+                        let s = _mm256_add_epi16(m, d);
+                        let d = _mm256_set1_epi16(32);
+                        let s = _mm256_add_epi16(s, d);
+                        let shift = _mm_set_epi64x(0, 6);
+                        let s = _mm256_sra_epi16(s, shift);
+                        let ub = _mm256_set1_epi16(255);
+                        let s = _mm256_min_epi16(s, ub);
+                        let lb = _mm256_set1_epi16(0);
+                        let s = _mm256_max_epi16(s, lb);
+                        let shuffle = _mm256_set_epi8(
+                            0, 0, 0, 0, 0, 0, 0, 0, 14, 12, 10, 8, 6, 4, 2, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 14, 12, 10, 8, 6, 4, 2, 0,
+                        );
+                        let s = _mm256_shuffle_epi8(s, shuffle);
+                        let s0 = _mm256_extract_epi64(s, 0);
+                        let s1 = _mm256_extract_epi64(s, 2);
+                        *(tpp[16..].as_mut_ptr() as *mut i64) = s0;
+                        *(tpp[24..].as_mut_ptr() as *mut i64) = s1;
 
-            //let ref_lyv = _mm256_lddqu_si256(ref_ly[32..].as_ptr() as *const _);
-            //let w_lv = _mm256_lddqu_si256(w_l[32..].as_ptr() as *const _);
-            //let ml = _mm256_mullo_epi16(ref_lyv, w_lv);
-            //let ref_tyv = _mm256_lddqu_si256(ref_ty[32..].as_ptr() as *const _);
-            //let mt = _mm256_mullo_epi16(ref_tyv, w_ty);
-            //let m = _mm256_add_epi16(ml, mt);
-            //let d = _mm256_sub_epi16(neg_w_ty, w_lv);
-            //let tppv = _mm_lddqu_si128(tpp[32..].as_ptr() as *const _);
-            //let tppv = _mm256_cvtepu8_epi16(tppv);
-            //let d = _mm256_mullo_epi16(d, tppv);
-            //let s = _mm256_add_epi16(m, d);
-            //let d = _mm256_set1_epi16(32);
-            //let s = _mm256_add_epi16(s, d);
-            //let shift = _mm_set_epi64x(0, 6);
-            //let s = _mm256_srl_epi16(s, shift);
-            //let ub = _mm256_set1_epi16(255);
-            //let s = _mm256_min_epi16(s, ub);
-            //let shuffle = _mm256_set_epi8(
-            //0, 0, 0, 0, 0, 0, 0, 0, 14, 12, 10, 8, 6, 4, 2, 0, 0, 0, 0, 0, 0, 0, 0,
-            //0, 14, 12, 10, 8, 6, 4, 2, 0,
-            //);
-            //let s = _mm256_shuffle_epi8(s, shuffle);
-            //let s0 = _mm256_extract_epi64(s, 0);
-            //let s1 = _mm256_extract_epi64(s, 2);
-            //*(tpp[32..].as_mut_ptr() as *mut i64) = s0;
-            //*(tpp[40..].as_mut_ptr() as *mut i64) = s1;
+                        let ref_lyv = _mm256_lddqu_si256(ref_ly[32..].as_ptr() as *const _);
+                        let w_lv = _mm256_lddqu_si256(w_l[32..].as_ptr() as *const _);
+                        let ml = _mm256_mullo_epi16(ref_lyv, w_lv);
+                        let ref_tyv = _mm256_lddqu_si256(ref_ty[32..].as_ptr() as *const _);
+                        let mt = _mm256_mullo_epi16(ref_tyv, w_ty);
+                        let m = _mm256_add_epi16(ml, mt);
+                        let d = _mm256_sub_epi16(neg_w_ty, w_lv);
+                        let tppv = _mm_lddqu_si128(tpp[32..].as_ptr() as *const _);
+                        let tppv = _mm256_cvtepu8_epi16(tppv);
+                        let d = _mm256_mullo_epi16(d, tppv);
+                        let s = _mm256_add_epi16(m, d);
+                        let d = _mm256_set1_epi16(32);
+                        let s = _mm256_add_epi16(s, d);
+                        let shift = _mm_set_epi64x(0, 6);
+                        let s = _mm256_sra_epi16(s, shift);
+                        let ub = _mm256_set1_epi16(255);
+                        let s = _mm256_min_epi16(s, ub);
+                        let lb = _mm256_set1_epi16(0);
+                        let s = _mm256_max_epi16(s, lb);
+                        let shuffle = _mm256_set_epi8(
+                            0, 0, 0, 0, 0, 0, 0, 0, 14, 12, 10, 8, 6, 4, 2, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 14, 12, 10, 8, 6, 4, 2, 0,
+                        );
+                        let s = _mm256_shuffle_epi8(s, shuffle);
+                        let s0 = _mm256_extract_epi64(s, 0);
+                        let s1 = _mm256_extract_epi64(s, 2);
+                        *(tpp[32..].as_mut_ptr() as *mut i64) = s0;
+                        *(tpp[40..].as_mut_ptr() as *mut i64) = s1;
 
-            //let ref_lyv = _mm256_lddqu_si256(ref_ly[48..].as_ptr() as *const _);
-            //let w_lv = _mm256_lddqu_si256(w_l[48..].as_ptr() as *const _);
-            //let ml = _mm256_mullo_epi16(ref_lyv, w_lv);
-            //let ref_tyv = _mm256_lddqu_si256(ref_ty[48..].as_ptr() as *const _);
-            //let mt = _mm256_mullo_epi16(ref_tyv, w_ty);
-            //let m = _mm256_add_epi16(ml, mt);
-            //let d = _mm256_sub_epi16(neg_w_ty, w_lv);
-            //let tppv = _mm_lddqu_si128(tpp[48..].as_ptr() as *const _);
-            //let tppv = _mm256_cvtepu8_epi16(tppv);
-            //let d = _mm256_mullo_epi16(d, tppv);
-            //let s = _mm256_add_epi16(m, d);
-            //let d = _mm256_set1_epi16(32);
-            //let s = _mm256_add_epi16(s, d);
-            //let shift = _mm_set_epi64x(0, 6);
-            //let s = _mm256_srl_epi16(s, shift);
-            //let ub = _mm256_set1_epi16(255);
-            //let s = _mm256_min_epi16(s, ub);
-            //let shuffle = _mm256_set_epi8(
-            //0, 0, 0, 0, 0, 0, 0, 0, 14, 12, 10, 8, 6, 4, 2, 0, 0, 0, 0, 0, 0, 0, 0,
-            //0, 14, 12, 10, 8, 6, 4, 2, 0,
-            //);
-            //let s = _mm256_shuffle_epi8(s, shuffle);
-            //let s0 = _mm256_extract_epi64(s, 0);
-            //let s1 = _mm256_extract_epi64(s, 2);
-            //*(tpp[48..].as_mut_ptr() as *mut i64) = s0;
-            //*(tpp[56..].as_mut_ptr() as *mut i64) = s1;
-            //},
-            //}
-            //} else {
-            for x in 0..tw {
-                let pred = ((ref_ly[x] * w_l[x]
-                    + ref_ty[x] * w_ty
-                    + (neg_w_ty - w_l[x]) * tpp[x] as i16
-                    + 32)
-                    >> 6)
-                    .clamp(0, 255) as u8;
-                tpp[x] = pred;
+                        let ref_lyv = _mm256_lddqu_si256(ref_ly[48..].as_ptr() as *const _);
+                        let w_lv = _mm256_lddqu_si256(w_l[48..].as_ptr() as *const _);
+                        let ml = _mm256_mullo_epi16(ref_lyv, w_lv);
+                        let ref_tyv = _mm256_lddqu_si256(ref_ty[48..].as_ptr() as *const _);
+                        let mt = _mm256_mullo_epi16(ref_tyv, w_ty);
+                        let m = _mm256_add_epi16(ml, mt);
+                        let d = _mm256_sub_epi16(neg_w_ty, w_lv);
+                        let tppv = _mm_lddqu_si128(tpp[48..].as_ptr() as *const _);
+                        let tppv = _mm256_cvtepu8_epi16(tppv);
+                        let d = _mm256_mullo_epi16(d, tppv);
+                        let s = _mm256_add_epi16(m, d);
+                        let d = _mm256_set1_epi16(32);
+                        let s = _mm256_add_epi16(s, d);
+                        let shift = _mm_set_epi64x(0, 6);
+                        let s = _mm256_sra_epi16(s, shift);
+                        let ub = _mm256_set1_epi16(255);
+                        let s = _mm256_min_epi16(s, ub);
+                        let lb = _mm256_set1_epi16(0);
+                        let s = _mm256_max_epi16(s, lb);
+                        let shuffle = _mm256_set_epi8(
+                            0, 0, 0, 0, 0, 0, 0, 0, 14, 12, 10, 8, 6, 4, 2, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 14, 12, 10, 8, 6, 4, 2, 0,
+                        );
+                        let s = _mm256_shuffle_epi8(s, shuffle);
+                        let s0 = _mm256_extract_epi64(s, 0);
+                        let s1 = _mm256_extract_epi64(s, 2);
+                        *(tpp[48..].as_mut_ptr() as *mut i64) = s0;
+                        *(tpp[56..].as_mut_ptr() as *mut i64) = s1;
+                    },
+                }
+            } else {
+                for x in 0..tw {
+                    let pred = ((ref_ly[x] * w_l[x]
+                        + ref_ty[x] * w_ty
+                        + (neg_w_ty - w_l[x]) * tpp[x] as i16
+                        + 32)
+                        >> 6)
+                        .clamp(0, 255) as u8;
+                    tpp[x] = pred;
+                }
             }
-            //}
         }
     }
 
